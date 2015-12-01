@@ -1,3 +1,44 @@
-# for projects that use Waf for building: http://code.google.com/p/waf/
-.waf-*
-.lock-*
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Vim
+*.swp
+
+# Waf
+/.lock-waf*
+/.waf*
+/waf
+/build.status
+/build
+
+# Build output
+/bin
+/lib
+/include
+/share
+
+# Dia
+*.dia~
