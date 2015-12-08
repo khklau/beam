@@ -1,0 +1,23 @@
+{
+    "product" : "beam",
+    "version" : "master",
+    "dependencies" :
+    [
+	{
+	    "product" : "asio",
+	    "version" : "1.10.6"
+	},
+	{
+	    "product" : "capnproto",
+	    "version" : "0.5.2"
+	},
+	{
+	    "product" : "enet",
+	    "version" : "1.3.13"
+	},
+	{
+	    "product" : "gtest",
+	    "version" : "1.7.0"
+	}
+    ]
+}
