@@ -5,3 +5,4 @@
 [submodule "env"]
 	path = env
 	url = https://github.com/khklau/envconf
+	branch = master
