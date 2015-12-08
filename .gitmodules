@@ -1,3 +1,6 @@
 [submodule "tool/waf"]
 	path = tool/waf
 	url = https://github.com/khklau/waf_khklau
+[submodule "env"]
+	path = env
+	url = https://github.com/khklau/envconf
