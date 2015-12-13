@@ -1,0 +1,54 @@
+import os
+import waflib.extras.capnproto
+from waflib.extras.layout import Product, Component
+
+queueCapnpFiles=[
+	'unordered_mixed_test.capnp']
+
+def name(context):
+    return os.path.basename(str(context.path))
+
+def configure(confCtx):
+    confCtx.env.component = Component.fromContext(confCtx, name(confCtx), confCtx.env.product)
+    confCtx.env.product.addComponent(confCtx.env.component)
+
+def build(buildCtx):
+    buildCtx.env.component = buildCtx.env.product.getComponent(name(buildCtx))
+    queueCxxNodeList=[]
+    queueHNodeList=[]
+    queueCapnpTaskList=[]
+    queuePublishTaskList=[]
+    for capnpFile in queueCapnpFiles:
+	compileTask='capnp_%s' % capnpFile
+	capnpNode=buildCtx.path.find_node(capnpFile)
+	cxxNode=capnpNode.change_ext('.capnp.c++').get_bld()
+	hNode=capnpNode.change_ext('.capnp.h').get_bld()
+	waflib.extras.capnproto.define_task_gen(buildCtx,
+		name=compileTask,
+		source=[capnpNode],
+		target=[cxxNode, hNode],
+		includes=[buildCtx.path.get_src().abspath(), buildCtx.srcnode.find_node('src').abspath()])
+	publishTask='publish_%s.h' % capnpFile
+	buildCtx(
+		name=publishTask,
+		rule='cp ${SRC} ${TGT}',
+		source=hNode,
+		target=os.path.join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), os.path.basename(str(hNode))),
+		after=compileTask)
+	queueCxxNodeList.append(cxxNode)
+	queueHNodeList.append(hNode)
+	queueCapnpTaskList.append(compileTask)
+	queuePublishTaskList.append(publishTask)
+    buildCtx.program(
+	    name='exe_unordered_mixed_test',
+	    source=[buildCtx.path.find_node('unordered_mixed_test.cxx')] + queueCxxNodeList,
+	    target=os.path.join(buildCtx.env.component.build_tree.testPathFromBuild(buildCtx), 'unordered_mixed_test'),
+	    defines=['GTEST_HAS_PTHREAD=1', 'ASIO_STANDALONE', 'ASIO_SEPARATE_COMPILATION', 'ASIO_DYN_LINK'],
+	    includes=['.'] + buildCtx.env.component.include_path_list,
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['GTEST', 'CAPNPROTO_SHLIB', 'ENET_SHLIB', 'ASIO_SHLIB', 'shlib_beam_internet'],
+	    libpath=['.'] + buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=None,
+	    after=queuePublishTaskList)

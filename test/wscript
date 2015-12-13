@@ -1,0 +1,14 @@
+from waflib.extras.layout import Solution, Product
+
+NAME = 'beam'
+
+def options(optCtx):
+    optCtx.add_option('--test', action='store', default='', dest='test')
+
+def configure(confCtx):
+    confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
+    confCtx.recurse('queue')
+
+def build(buildCtx):
+    buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
+    buildCtx.recurse('queue')

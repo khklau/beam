@@ -1,0 +1,41 @@
+from waflib.extras.layout import Solution, Product
+
+NAME = 'beam'
+
+def options(optCtx):
+    optCtx.load('cxx_env dep_resolver')
+
+def prepare(prepCtx):
+    prepCtx.options.dep_base_dir = prepCtx.srcnode.find_dir('..').abspath()
+    prepCtx.load('cxx_env dep_resolver')
+
+def configure(confCtx):
+    confCtx.options.env_conf_dir = confCtx.srcnode.find_dir('env').abspath()
+    confCtx.load('cxx_env dep_resolver')
+    confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
+    confCtx.env.solution.addProduct(confCtx.env.product)
+    confCtx.env.product.include_path_list.append(confCtx.env.product.build_tree.include)
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_ASIO_SHLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_ASIO_STLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_CAPNPROTO_STLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_CAPNPROTO_SHLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_ENET_SHLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_ENET_STLIB'])
+    confCtx.env.product.include_path_list.append(confCtx.env['INCLUDES_GTEST'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['LIBPATH_ASIO_SHLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_ASIO_STLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['LIBPATH_CAPNPROTO_SHLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_CAPNPROTO_STLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['LIBPATH_ENET_SHLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_ENET_STLIB'])
+    confCtx.env.product.lib_path_list.append(confCtx.env['STLIBPATH_GTEST'])
+    confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_ASIO_SHLIB'])
+    confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_CAPNPROTO_SHLIB'])
+    confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_ENET_SHLIB'])
+    confCtx.recurse('internet')
+    confCtx.recurse('queue')
+
+def build(buildCtx):
+    buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
+    buildCtx.recurse('internet')
+    buildCtx.recurse('queue')

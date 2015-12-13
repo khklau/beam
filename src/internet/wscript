@@ -1,0 +1,57 @@
+import os
+from waflib.extras.layout import Product, Component
+
+publicHeaders = [
+    'ipv4.hpp']
+
+sourceFiles = [
+    'ipv4.cxx']
+
+def name(context):
+    return os.path.basename(str(context.path))
+
+def configure(confCtx):
+    confCtx.env.component = Component.fromContext(confCtx, name(confCtx), confCtx.env.product)
+    confCtx.env.product.addComponent(confCtx.env.component)
+
+def build(buildCtx):
+    buildCtx.env.component = buildCtx.env.product.getComponent(name(buildCtx))
+    publishTaskList=[]
+    for header in publicHeaders:
+	publishTask='publish_%s' % header
+	buildCtx(
+		name=publishTask,
+		rule='cp ${SRC} ${TGT}',
+		source=header,
+		target=os.path.join(buildCtx.env.component.build_tree.includePathFromBuild(buildCtx), header),
+		install_path=os.path.join(buildCtx.env.component.install_tree.include, os.path.dirname(header)))
+	publishTaskList.append(publishTask)
+    buildCtx.shlib(
+	    name='shlib_beam_internet',
+	    source=[buildCtx.path.find_node(source) for source in sourceFiles],
+	    target=os.path.join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'beam_internet'),
+	    includes=buildCtx.env.component.include_path_list,
+	    defines=['SHLIB_BUILD', 'ASIO_STANDALONE', 'ASIO_SEPARATE_COMPILATION'],
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['ASIO_SHLIB'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    rpath=buildCtx.env.component.rpath_list,
+	    install_path=buildCtx.env.component.install_tree.lib,
+	    after=publishTaskList)
+    buildCtx.stlib(
+	    name='stlib_beam_internet',
+	    source=[buildCtx.path.find_node(source) for source in sourceFiles] +
+		    [buildCtx.root.find_node(lib) for lib in buildCtx.env['ASIO_STLIB_PATH']],
+	    target=os.path.join(buildCtx.env.component.build_tree.libPathFromBuild(buildCtx), 'beam_internet'),
+	    includes=buildCtx.env.component.include_path_list,
+	    defines=['ASIO_STANDALONE', 'ASIO_SEPARATE_COMPILATION'],
+	    cxxflags=buildCtx.env.CXXFLAGS,
+	    linkflags=buildCtx.env.LDFLAGS,
+	    use=['ASIO_STLIB'],
+	    libpath=buildCtx.env.component.lib_path_list,
+	    install_path=buildCtx.env.component.install_tree.lib,
+	    after=publishTaskList)
+
+def install(installCtx):
+    installCtx.env.component = installCtx.env.product.getComponent(name(installCtx))
