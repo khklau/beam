@@ -39,6 +39,12 @@ public:
 	not_connected,
 	forced_disconnection
     };
+    enum class send_result
+    {
+	success,
+	failure,
+	not_connected
+    };
     struct event_handlers
     {
 	std::function<void()> ready;
@@ -60,10 +66,17 @@ public:
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, port receive_port);
     disconnection_result disconnect();
     void grow(std::size_t additional_size);
-    void send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
+    send_result send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
 private:
+    enum class channel_id : uint8_t
+    {
+	unreliable = 0,
+	reliable = 1
+    };
     void activate();
     void on_expiry(const asio::error_code& error);
+    ENetPacket* register_reliable_msg(std::unique_ptr<capnp::MallocMessageBuilder> message);
+    void unregister_reliable_msg(const ENetPacket* packet);
     asio::io_service& service_;
     asio::high_resolution_timer timer_;
     event_handlers handlers_;

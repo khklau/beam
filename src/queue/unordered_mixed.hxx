@@ -14,6 +14,7 @@ sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, even
 	handlers_(handlers),
 	params_(params),
 	host_(nullptr),
+	peer_(nullptr),
 	builders_(),
 	active_(),
 	idle_()
@@ -31,7 +32,7 @@ sender<unreliable_msg_t, reliable_msg_t>::~sender()
 {
     if (is_connected())
     {
-	enet_peer_reset(peer_);
+	disconnect();
     }
     enet_host_destroy(host_);
 }
@@ -63,27 +64,33 @@ typename sender<unreliable_msg_t, reliable_msg_t>::connection_result sender<unre
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::disconnection_result sender<unreliable_msg_t, reliable_msg_t>::disconnect()
 {
-    if (peer_ == nullptr)
+    if (!is_connected())
     {
 	return disconnection_result::not_connected;
     }
     enet_peer_reset(peer_);
+    peer_ = nullptr;
     return disconnection_result::forced_disconnection;
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void sender<unreliable_msg_t, reliable_msg_t>::send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message)
+typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
+	std::unique_ptr<capnp::MallocMessageBuilder> message)
 {
-    if (idle_.empty())
+    if (!is_connected())
     {
-	grow(builders_.size() * 0.5);
+	return send_result::not_connected;
     }
-    auto iter = idle_.begin();
-    uint32_t index = *iter; 
-    idle_.erase(iter);
-    builders_.at(index) = message;
-    active_.emplace(index);
-    // TODO: implement
+    ENetPacket* packet = register_reliable_msg(message);
+    if (enet_peer_send(peer_, channel_id::reliable, packet) == 0)
+    {
+	enet_host_flush(host_);
+	return send_result::success;
+    }
+    else
+    {
+	return send_result::failure;
+    }
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -137,6 +144,51 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 		activate();
 	    }
 	}
+    }
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+ENetPacket* sender<unreliable_msg_t, reliable_msg_t>::register_reliable_msg(
+	std::unique_ptr<capnp::MallocMessageBuilder> message)
+{
+    if (idle_.empty())
+    {
+	grow(builders_.size() * 0.5);
+    }
+    auto iter = idle_.begin();
+    uint32_t index = *iter; 
+    idle_.erase(iter);
+    builders_.at(index) = message;
+    active_.emplace(index);
+    ENetPacket* packet = enet_packet_create(
+	    builders_[index]->getSegmentsForOutput().begin(),
+	    builders_[index]->getSegmentsForOutput().size(),
+	    ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED);
+    packet->userData = static_cast<void*>(index);
+    packet->freeCallback = std::bind(
+	    &sender<unreliable_msg_t, reliable_msg_t>::unregister_reliable_msg,
+	    this,
+	    std::placeholders::_1);
+    return packet;
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+void sender<unreliable_msg_t, reliable_msg_t>::unregister_reliable_msg(const ENetPacket* packet)
+{
+    uint32_t index = static_cast<uint32_t>(packet->userData); 
+    auto iter = active_.find(index);
+    if (iter != active_.end())
+    {
+	active_.erase(iter);
+    }
+    if (index < builders_.size())
+    {
+	builders_[index].reset();
+    }
+    iter = idle_.find(index);
+    if (iter == idle_.end())
+    {
+	idle_.emplace(index);
     }
 }
 
