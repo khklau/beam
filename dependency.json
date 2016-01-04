@@ -18,6 +18,10 @@
 	{
 	    "product" : "gtest",
 	    "version" : "1.7.0"
+	},
+	{
+	    "product" : "turbo",
+	    "version" : "master"
 	}
     ]
 }
