@@ -1,30 +1,43 @@
 #ifndef BEAM_QUEUE_UNORDERED_MIXED_HXX
 #define BEAM_QUEUE_UNORDERED_MIXED_HXX
 
+#include <cstring>
+#include <capnp/serialize.h>
+
 namespace beam {
 namespace queue {
 namespace unordered_mixed {
 
 namespace bii4 = beam::internet::ipv4;
+namespace bqc = beam::queue::common;
 
 template <class unreliable_msg_t, class reliable_msg_t>
-sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, event_handlers&& handlers, perf_params&& params) :
+sender<unreliable_msg_t, reliable_msg_t>::sender::perf_params::perf_params(
+	std::size_t win, std::chrono::microseconds sleep,
+	std::chrono::milliseconds connection,
+	std::size_t in,
+	std::size_t out) :
+    window_size(win),
+    sleep_amount(sleep),
+    connection_timeout(connection),
+    in_bytes_per_sec(in),
+    out_bytes_per_sec(out)
+{ }
+
+template <class unreliable_msg_t, class reliable_msg_t>
+sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, const event_handlers& handlers, const perf_params& params) :
 	service_(service),
 	timer_(service_),
 	handlers_(handlers),
 	params_(params),
 	host_(nullptr),
-	peer_(nullptr),
-	builders_(),
-	active_(),
-	idle_()
+	peer_(nullptr)
 {
     host_ = enet_host_create(nullptr, 1, 2, params_.in_bytes_per_sec, params_.out_bytes_per_sec);
     if (host_ == nullptr)
     {
 	throw std::runtime_error("Transport layer endpoint initialisation failed");
     }
-    grow(params_.window_size);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -40,7 +53,7 @@ sender<unreliable_msg_t, reliable_msg_t>::~sender()
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::connection_result sender<unreliable_msg_t, reliable_msg_t>::connect(
 	std::vector<beam::internet::ipv4::address>&& receive_candidates,
-	port receive_port)
+	bqc::port port)
 {
     if (peer_ != nullptr)
     {
@@ -50,12 +63,20 @@ typename sender<unreliable_msg_t, reliable_msg_t>::connection_result sender<unre
     {
 	ENetAddress endpoint;
 	endpoint.host = *iter;
-	endpoint.port = receive_port;
+	endpoint.port = port;
 	peer_ = enet_host_connect(host_, &endpoint, 2U, 0U);
 	if (peer_)
 	{
-	    activate();
-	    return connection_result::success;
+	    ENetEvent event;
+	    if (enet_host_service(host_, &event, params_.connection_timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
+	    {
+		activate();
+		return connection_result::success;
+	    }
+	    else
+	    {
+		enet_peer_reset(peer_);
+	    }
 	}
     }
     return connection_result::failure;
@@ -68,6 +89,7 @@ typename sender<unreliable_msg_t, reliable_msg_t>::disconnection_result sender<u
     {
 	return disconnection_result::not_connected;
     }
+    deactivate();
     enet_peer_reset(peer_);
     peer_ = nullptr;
     return disconnection_result::forced_disconnection;
@@ -81,7 +103,12 @@ typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable
     {
 	return send_result::not_connected;
     }
-    ENetPacket* packet = register_reliable_msg(message);
+    ENetPacket* packet = enet_packet_create(
+	    message->getSegmentsForOutput().begin(),
+	    message->getSegmentsForOutput().size(),
+	    ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED);
+    packet->userData = message.release();
+    packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg;
     if (enet_peer_send(peer_, channel_id::reliable, packet) == 0)
     {
 	enet_host_flush(host_);
@@ -90,20 +117,6 @@ typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable
     else
     {
 	return send_result::failure;
-    }
-}
-
-template <class unreliable_msg_t, class reliable_msg_t>
-void sender<unreliable_msg_t, reliable_msg_t>::grow(std::size_t additional_size)
-{
-    std::size_t new_size = builders_.size() + additional_size;
-    builders_.resize(new_size);
-    active_.reserve(new_size);
-    std::size_t orig_size = idle_.size();
-    idle_.reserve(new_size);
-    for (uint32_t iter = orig_size; iter < new_size; ++iter)
-    {
-	idle_.emplace(iter);
     }
 }
 
@@ -119,6 +132,13 @@ void sender<unreliable_msg_t, reliable_msg_t>::activate()
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
+void sender<unreliable_msg_t, reliable_msg_t>::deactivate()
+{
+    asio::error_code error;
+    timer_.cancel(error);
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
 void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code& error)
 {
     ENetEvent event;
@@ -126,69 +146,127 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
     {
 	switch (event.type)
 	{
-	    case ENET_EVENT_TYPE_NONE:
-	    {
-		handlers_.ready();
-		activate();
-		break;
-	    }
 	    case ENET_EVENT_TYPE_DISCONNECT:
 	    {
-		handlers_.disconnect(event.peer->address.host);
+		handlers_.on_disconnect();
+		deactivate();
 		break;
 	    }
+	    case ENET_EVENT_TYPE_NONE:
 	    case ENET_EVENT_TYPE_CONNECT:
 	    case ENET_EVENT_TYPE_RECEIVE:
 	    {
-		// these events are useless for a sender; ignore
 		activate();
+		break;
 	    }
 	}
     }
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-ENetPacket* sender<unreliable_msg_t, reliable_msg_t>::register_reliable_msg(
-	std::unique_ptr<capnp::MallocMessageBuilder> message)
+void sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg(ENetPacket* packet)
 {
-    if (idle_.empty())
-    {
-	grow(builders_.size() * 0.5);
-    }
-    auto iter = idle_.begin();
-    uint32_t index = *iter; 
-    idle_.erase(iter);
-    builders_.at(index) = message;
-    active_.emplace(index);
-    ENetPacket* packet = enet_packet_create(
-	    builders_[index]->getSegmentsForOutput().begin(),
-	    builders_[index]->getSegmentsForOutput().size(),
-	    ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED);
-    packet->userData = static_cast<void*>(index);
-    packet->freeCallback = std::bind(
-	    &sender<unreliable_msg_t, reliable_msg_t>::unregister_reliable_msg,
-	    this,
-	    std::placeholders::_1);
-    return packet;
+    std::unique_ptr<capnp::MallocMessageBuilder>::deleter_type deleter;
+    deleter(reinterpret_cast<capnp::MallocMessageBuilder*>(packet->userData)); 
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void sender<unreliable_msg_t, reliable_msg_t>::unregister_reliable_msg(const ENetPacket* packet)
+receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service& service, perf_params&& params) :
+	service_(service),
+	params_(std::move(params)),
+	host_(nullptr)
+{ }
+
+template <class unreliable_msg_t, class reliable_msg_t>
+receiver<unreliable_msg_t, reliable_msg_t>::~receiver()
 {
-    uint32_t index = static_cast<uint32_t>(packet->userData); 
-    auto iter = active_.find(index);
-    if (iter != active_.end())
+    if (is_bound())
     {
-	active_.erase(iter);
+	unbind();
     }
-    if (index < builders_.size())
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreliable_msg_t, reliable_msg_t>::bind(const bqc::endpoint& point)
+{
+    if (is_bound())
     {
-	builders_[index].reset();
+	return bind_result::already_bound;
     }
-    iter = idle_.find(index);
-    if (iter == idle_.end())
+    ENetAddress address{point.address, point.port};
+    host_ = enet_host_create(&address, params_.max_connections, 2, params_.in_bytes_per_sec, params_.out_bytes_per_sec);
+    if (host_ == nullptr)
     {
-	idle_.emplace(index);
+	return bind_result::failure;
+    }
+    return bind_result::success;
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+void receiver<unreliable_msg_t, reliable_msg_t>::unbind()
+{
+    enet_host_destroy(host_);
+    host_ = nullptr;
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+void receiver<unreliable_msg_t, reliable_msg_t>::async_receive(const event_handlers& handlers)
+{
+    service_.post(std::bind(
+	    &receiver<unreliable_msg_t, reliable_msg_t>::check_events,
+	    this,
+	    handlers));
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handlers handlers)
+{
+    ENetEvent event;
+    int occurrance = enet_host_service(host_, &event, params_.wait_amount.count());
+    if (occurrance == 0)
+    {
+	handlers.on_timeout(handlers);
+    }
+    else
+    {
+	do
+	{
+	    switch (event.type)
+	    {
+		case ENET_EVENT_TYPE_DISCONNECT:
+		{
+		    handlers.on_disconnect(event.peer->address.host, event.peer->address.port);
+		    break;
+		}
+		case ENET_EVENT_TYPE_CONNECT:
+		{
+		    handlers.on_connect(event.peer->address.host, event.peer->address.port);
+		    break;
+		}
+		case ENET_EVENT_TYPE_RECEIVE:
+		{
+		    // Can't be under sized, so round up the size to the next word
+		    kj::Array<capnp::word> tmp = kj::heapArray<capnp::word>(1 + ((event.packet->dataLength - 1) / sizeof(capnp::word)));
+		    memcpy(tmp.asPtr().begin(), event.packet->data, event.packet->dataLength);
+		    capnp::FlatArrayMessageReader msg(tmp);
+		    if (event.channelID == channel_id::unreliable)
+		    {
+			handlers.on_receive_unreliable_msg(msg.getRoot<unreliable_msg_t>());
+		    }
+		    else if (event.channelID == channel_id::reliable)
+		    {
+			handlers.on_receive_reliable_msg(msg.getRoot<reliable_msg_t>());
+		    }
+		    break;
+		}
+		case ENET_EVENT_TYPE_NONE:
+		{
+		    break;
+		}
+	    }
+	    occurrance = enet_host_check_events(host_, &event);
+	}
+	while (occurrance > 0);
     }
 }
 
