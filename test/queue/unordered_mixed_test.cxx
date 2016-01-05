@@ -107,7 +107,7 @@ void sender_slave::on_send_reliable()
 {
     std::unique_ptr<capnp::MallocMessageBuilder> message;
     ASSERT_EQ(queue_type::consumer::result::success, queue_.get_consumer().try_dequeue_move(message));
-    sender_.send_reliable(std::move(message));
+    sender_.send_reliable(*message);
 }
 
 void sender_slave::on_disconnect()
@@ -199,7 +199,7 @@ TEST(unordered_mixed_test, basic)
 		},
 		[&](bqu::ReliableMsg::Reader reader)
 		{
-		    ASSERT_EQ("foo", reader.getValue().cStr()) << "Incorrect message value";
+		    ASSERT_STREQ("foo", reader.getValue().cStr()) << "Incorrect message value";
 		    ++reliable_count;
 		}
 	    });

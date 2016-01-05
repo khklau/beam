@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <chrono>
 #include <functional>
-#include <memory>
 #include <string>
 #include <vector>
 #include <asio/io_service.hpp>
@@ -73,7 +72,7 @@ public:
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
-    send_result send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
+    send_result send_reliable(capnp::MallocMessageBuilder& message);
 private:
     void activate();
     void deactivate();

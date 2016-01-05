@@ -2,7 +2,9 @@
 #define BEAM_QUEUE_UNORDERED_MIXED_HXX
 
 #include <cstring>
+#include <capnp/common.h>
 #include <capnp/serialize.h>
+#include <kj/array.h>
 
 namespace beam {
 namespace queue {
@@ -97,17 +99,18 @@ typename sender<unreliable_msg_t, reliable_msg_t>::disconnection_result sender<u
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
-	std::unique_ptr<capnp::MallocMessageBuilder> message)
+	capnp::MallocMessageBuilder& message)
 {
     if (!is_connected())
     {
 	return send_result::not_connected;
     }
+    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(messageToFlatArray(message)));
     ENetPacket* packet = enet_packet_create(
-	    message->getSegmentsForOutput().begin(),
-	    message->getSegmentsForOutput().size(),
+	    array->begin(),
+	    array->size() *  sizeof(capnp::word),
 	    ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED);
-    packet->userData = message.release();
+    packet->userData = array;
     packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg;
     if (enet_peer_send(peer_, channel_id::reliable, packet) == 0)
     {
@@ -166,8 +169,7 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 template <class unreliable_msg_t, class reliable_msg_t>
 void sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg(ENetPacket* packet)
 {
-    std::unique_ptr<capnp::MallocMessageBuilder>::deleter_type deleter;
-    deleter(reinterpret_cast<capnp::MallocMessageBuilder*>(packet->userData)); 
+    delete reinterpret_cast<kj::Array<capnp::word>*>(packet->userData);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -245,9 +247,9 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		}
 		case ENET_EVENT_TYPE_RECEIVE:
 		{
-		    // Can't be under sized, so round up the size to the next word
-		    kj::Array<capnp::word> tmp = kj::heapArray<capnp::word>(1 + ((event.packet->dataLength - 1) / sizeof(capnp::word)));
-		    memcpy(tmp.asPtr().begin(), event.packet->data, event.packet->dataLength);
+		    kj::Array<capnp::word> tmp = kj::heapArray<capnp::word>(
+			    reinterpret_cast<capnp::word*>(event.packet->data),
+			    event.packet->dataLength / sizeof(capnp::word));
 		    capnp::FlatArrayMessageReader msg(tmp);
 		    if (event.channelID == channel_id::unreliable)
 		    {
