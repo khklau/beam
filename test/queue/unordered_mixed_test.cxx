@@ -24,12 +24,15 @@ public:
     inline bool is_running() const { return thread_ != nullptr; }
     void start();
     void stop();
+    void send_unreliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
     void send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
 private:
     typedef turbo::container::spsc_ring_queue<std::unique_ptr<capnp::MallocMessageBuilder>> queue_type;
     sender_slave(const sender_slave& other) = delete;
     sender_slave& operator=(const sender_slave& other) = delete;
     void run();
+    void brake();
+    void on_send_unreliable();
     void on_send_reliable();
     void on_disconnect();
     bii4::address address_;
@@ -84,16 +87,18 @@ void sender_slave::start()
 
 void sender_slave::stop()
 {
-    if (sender_.is_connected())
-    {
-	sender_.disconnect();
-    }
-    service_.stop();
+    service_.post(std::bind(&sender_slave::brake, this));
+}
+
+void sender_slave::send_unreliable(std::unique_ptr<capnp::MallocMessageBuilder> message)
+{
+    ASSERT_EQ(queue_type::producer::result::success, queue_.get_producer().try_enqueue_move(std::move(message))) << "Unreliable message enqueue failed";
+    service_.post(std::bind(&sender_slave::on_send_unreliable, this));
 }
 
 void sender_slave::send_reliable(std::unique_ptr<capnp::MallocMessageBuilder> message)
 {
-    ASSERT_EQ(queue_type::producer::result::success, queue_.get_producer().try_enqueue_move(std::move(message)));
+    ASSERT_EQ(queue_type::producer::result::success, queue_.get_producer().try_enqueue_move(std::move(message))) << "Reliable message enqueue failed";
     service_.post(std::bind(&sender_slave::on_send_reliable, this));
 }
 
@@ -103,16 +108,32 @@ void sender_slave::run()
     service_.run();
 }
 
+void sender_slave::brake()
+{
+    if (sender_.is_connected())
+    {
+	sender_.disconnect();
+    }
+    service_.stop();
+}
+
+void sender_slave::on_send_unreliable()
+{
+    std::unique_ptr<capnp::MallocMessageBuilder> message;
+    ASSERT_EQ(queue_type::consumer::result::success, queue_.get_consumer().try_dequeue_move(message)) << "Unreliable message dequeue failed";
+    sender_.send_unreliable(*message);
+}
+
 void sender_slave::on_send_reliable()
 {
     std::unique_ptr<capnp::MallocMessageBuilder> message;
-    ASSERT_EQ(queue_type::consumer::result::success, queue_.get_consumer().try_dequeue_move(message));
+    ASSERT_EQ(queue_type::consumer::result::success, queue_.get_consumer().try_dequeue_move(message)) << "Reliable message dequeue failed";
     sender_.send_reliable(*message);
 }
 
 void sender_slave::on_disconnect()
 {
-    ASSERT_FALSE(true) << "Unwanted disconnect";
+    GTEST_FATAL_FAILURE_("Unexpected disconnect");
 }
 
 receiver_master::receiver_master(bqc::endpoint&& point, receiver_type::perf_params&& params) :
@@ -135,13 +156,85 @@ void receiver_master::bind(bqc::endpoint&& point)
     ASSERT_EQ(receiver_type::bind_result::success, receiver.bind(point)) << "Bind failed";
 }
 
-
-TEST(unordered_mixed_test, basic)
+TEST(unordered_mixed_test, basic_unreliable)
 {
     {
 	std::size_t connection_count = 0;
 	receiver_master master({0U, 8888U}, {24U, std::chrono::milliseconds(0)});
 	sender_slave slave(16777343U, 8888U, {128U, std::chrono::microseconds(0)});
+	while (connection_count == 0)
+	{
+	    master.receiver.async_receive(
+	    {
+		[&](const receiver_master::receiver_type::event_handlers& current)
+		{
+		    slave.start();
+		    master.receiver.async_receive(current);
+		},
+		[&](const bii4::address& address, const beam::queue::common::port&)
+		{
+		    ASSERT_EQ(16777343U, address) << "Connection on unexpected address";
+		    ++connection_count;
+		},
+		[&](const bii4::address&, const beam::queue::common::port&)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+		},
+		[&](bqu::UnreliableMsg::Reader)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+		},
+		[&](bqu::ReliableMsg::Reader)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+		}
+	    });
+	    master.service.run();
+	}
+	master.service.reset();
+	std::size_t unreliable_count = 0;
+	while (unreliable_count == 0)
+	{
+	    master.receiver.async_receive(
+	    {
+		[&](const receiver_master::receiver_type::event_handlers& current)
+		{
+		    std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
+		    bqu::UnreliableMsg::Builder message = builder->initRoot<bqu::UnreliableMsg>();
+		    message.setValue(123);
+		    slave.send_unreliable(std::move(builder));
+		    master.receiver.async_receive(current);
+		},
+		[&](const bii4::address&, const beam::queue::common::port&)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected connect");
+		},
+		[&](const bii4::address&, const beam::queue::common::port&)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+		},
+		[&](bqu::UnreliableMsg::Reader reader)
+		{
+		    ASSERT_EQ(123U, reader.getValue()) << "Incorrect message value";
+		    ++unreliable_count;
+		},
+		[&](bqu::ReliableMsg::Reader)
+		{
+		    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+		}
+	    });
+	    master.service.run();
+	};
+	slave.stop();
+    }
+}
+
+TEST(unordered_mixed_test, basic_reliable)
+{
+    {
+	std::size_t connection_count = 0;
+	receiver_master master({0U, 8889U}, {24U, std::chrono::milliseconds(0)});
+	sender_slave slave(16777343U, 8889U, {128U, std::chrono::microseconds(0)});
 	while (connection_count == 0)
 	{
 	    master.receiver.async_receive(
