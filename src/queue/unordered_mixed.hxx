@@ -6,6 +6,25 @@
 #include <capnp/serialize.h>
 #include <kj/array.h>
 
+namespace {
+
+inline uint32_t get_packet_flags(beam::queue::unordered_mixed::channel_id::type channel)
+{
+    uint32_t flags = 0;
+    switch (channel)
+    {
+	case beam::queue::unordered_mixed::channel_id::unreliable:
+	    flags = ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
+	    break;
+	case beam::queue::unordered_mixed::channel_id::reliable:
+	    flags = ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
+	    break;
+    };
+    return flags;
+}
+
+} // anonymous namespace
+
 namespace beam {
 namespace queue {
 namespace unordered_mixed {
@@ -67,7 +86,7 @@ typename sender<unreliable_msg_t, reliable_msg_t>::connection_result sender<unre
 	endpoint.host = *iter;
 	endpoint.port = port;
 	peer_ = enet_host_connect(host_, &endpoint, 2U, 0U);
-	if (peer_)
+	if (peer_ != nullptr)
 	{
 	    ENetEvent event;
 	    if (enet_host_service(host_, &event, params_.connection_timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
@@ -78,6 +97,7 @@ typename sender<unreliable_msg_t, reliable_msg_t>::connection_result sender<unre
 	    else
 	    {
 		enet_peer_reset(peer_);
+		peer_ = nullptr;
 	    }
 	}
     }
@@ -98,8 +118,22 @@ typename sender<unreliable_msg_t, reliable_msg_t>::disconnection_result sender<u
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
+typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
+	capnp::MallocMessageBuilder& message)
+{
+    return send(message, channel_id::unreliable);
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
 	capnp::MallocMessageBuilder& message)
+{
+    return send(message, channel_id::reliable);
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send(
+	capnp::MallocMessageBuilder& message, channel_id::type channel)
 {
     if (!is_connected())
     {
@@ -109,10 +143,10 @@ typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable
     ENetPacket* packet = enet_packet_create(
 	    array->begin(),
 	    array->size() *  sizeof(capnp::word),
-	    ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED);
+	    ::get_packet_flags(channel));
     packet->userData = array;
-    packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg;
-    if (enet_peer_send(peer_, channel_id::reliable, packet) == 0)
+    packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_message;
+    if (enet_peer_send(peer_, channel, packet) == 0)
     {
 	enet_host_flush(host_);
 	return send_result::success;
@@ -167,7 +201,7 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void sender<unreliable_msg_t, reliable_msg_t>::free_reliable_msg(ENetPacket* packet)
+void sender<unreliable_msg_t, reliable_msg_t>::free_message(ENetPacket* packet)
 {
     delete reinterpret_cast<kj::Array<capnp::word>*>(packet->userData);
 }

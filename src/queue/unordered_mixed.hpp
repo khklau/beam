@@ -73,11 +73,13 @@ public:
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
     send_result send_reliable(capnp::MallocMessageBuilder& message);
+    send_result send_unreliable(capnp::MallocMessageBuilder& message);
 private:
     void activate();
     void deactivate();
     void on_expiry(const asio::error_code& error);
-    static void free_reliable_msg(ENetPacket* packet);
+    send_result send(capnp::MallocMessageBuilder& message, channel_id::type channel);
+    static void free_message(ENetPacket* packet);
     asio::io_service& service_;
     asio::high_resolution_timer timer_;
     event_handlers handlers_;
