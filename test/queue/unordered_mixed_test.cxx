@@ -15,6 +15,10 @@ namespace bii4 = beam::internet::ipv4;
 namespace bqc = beam::queue::common;
 namespace bqu = beam::queue::unordered_mixed;
 
+namespace {
+
+static const uint32_t localhost = 16777343U;
+
 class sender_slave
 {
 public:
@@ -22,6 +26,8 @@ public:
     sender_slave(bii4::address address, bqc::port port, const sender_type::perf_params& params);
     ~sender_slave();
     inline bool is_running() const { return thread_ != nullptr; }
+    inline bii4::address get_address() const { return address_; }
+    inline bqc::port get_port() const { return port_; }
     void start();
     void stop();
     void send_unreliable(std::unique_ptr<capnp::MallocMessageBuilder> message);
@@ -156,148 +162,121 @@ void receiver_master::bind(bqc::endpoint&& point)
     ASSERT_EQ(receiver_type::bind_result::success, receiver.bind(point)) << "Bind failed";
 }
 
+void setupConnection(::receiver_master& master, ::sender_slave& slave)
+{
+    std::size_t connection_count = 0;
+    while (connection_count == 0)
+    {
+	master.receiver.async_receive(
+	{
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    {
+		slave.start();
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address& address, const beam::queue::common::port&)
+	    {
+		ASSERT_EQ(slave.get_address(), address) << "Connection on unexpected address";
+		++connection_count;
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	    },
+	    [&](bqu::ReliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	    }
+	});
+	master.service.run();
+    }
+    master.service.reset();
+}
+
+} // anonymous namespace
+
 TEST(unordered_mixed_test, basic_unreliable)
 {
+    ::receiver_master master({0U, 8888U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8888U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::size_t unreliable_count = 0;
+    while (unreliable_count == 0)
     {
-	std::size_t connection_count = 0;
-	receiver_master master({0U, 8888U}, {24U, std::chrono::milliseconds(0)});
-	sender_slave slave(16777343U, 8888U, {128U, std::chrono::microseconds(0)});
-	while (connection_count == 0)
+	master.receiver.async_receive(
 	{
-	    master.receiver.async_receive(
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
 	    {
-		[&](const receiver_master::receiver_type::event_handlers& current)
-		{
-		    slave.start();
-		    master.receiver.async_receive(current);
-		},
-		[&](const bii4::address& address, const beam::queue::common::port&)
-		{
-		    ASSERT_EQ(16777343U, address) << "Connection on unexpected address";
-		    ++connection_count;
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
-		},
-		[&](bqu::UnreliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
-		},
-		[&](bqu::ReliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected reliable message");
-		}
-	    });
-	    master.service.run();
-	}
-	master.service.reset();
-	std::size_t unreliable_count = 0;
-	while (unreliable_count == 0)
-	{
-	    master.receiver.async_receive(
+		std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
+		bqu::UnreliableMsg::Builder message = builder->initRoot<bqu::UnreliableMsg>();
+		message.setValue(123);
+		slave.send_unreliable(std::move(builder));
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
 	    {
-		[&](const receiver_master::receiver_type::event_handlers& current)
-		{
-		    std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
-		    bqu::UnreliableMsg::Builder message = builder->initRoot<bqu::UnreliableMsg>();
-		    message.setValue(123);
-		    slave.send_unreliable(std::move(builder));
-		    master.receiver.async_receive(current);
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected connect");
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
-		},
-		[&](bqu::UnreliableMsg::Reader reader)
-		{
-		    ASSERT_EQ(123U, reader.getValue()) << "Incorrect message value";
-		    ++unreliable_count;
-		},
-		[&](bqu::ReliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected reliable message");
-		}
-	    });
-	    master.service.run();
-	};
-	slave.stop();
-    }
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader reader)
+	    {
+		ASSERT_EQ(123U, reader.getValue()) << "Incorrect message value";
+		++unreliable_count;
+	    },
+	    [&](bqu::ReliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	    }
+	});
+	master.service.run();
+    };
+    slave.stop();
 }
 
 TEST(unordered_mixed_test, basic_reliable)
 {
+    ::receiver_master master({0U, 8889U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::size_t reliable_count = 0;
+    while (reliable_count == 0)
     {
-	std::size_t connection_count = 0;
-	receiver_master master({0U, 8889U}, {24U, std::chrono::milliseconds(0)});
-	sender_slave slave(16777343U, 8889U, {128U, std::chrono::microseconds(0)});
-	while (connection_count == 0)
+	master.receiver.async_receive(
 	{
-	    master.receiver.async_receive(
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
 	    {
-		[&](const receiver_master::receiver_type::event_handlers& current)
-		{
-		    slave.start();
-		    master.receiver.async_receive(current);
-		},
-		[&](const bii4::address& address, const beam::queue::common::port&)
-		{
-		    ASSERT_EQ(16777343U, address) << "Connection on unexpected address";
-		    ++connection_count;
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
-		},
-		[&](bqu::UnreliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
-		},
-		[&](bqu::ReliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected reliable message");
-		}
-	    });
-	    master.service.run();
-	}
-	master.service.reset();
-	std::size_t reliable_count = 0;
-	while (reliable_count == 0)
-	{
-	    master.receiver.async_receive(
+		std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
+		bqu::ReliableMsg::Builder message = builder->initRoot<bqu::ReliableMsg>();
+		message.setValue("foo");
+		slave.send_reliable(std::move(builder));
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
 	    {
-		[&](const receiver_master::receiver_type::event_handlers& current)
-		{
-		    std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
-		    bqu::ReliableMsg::Builder message = builder->initRoot<bqu::ReliableMsg>();
-		    message.setValue("foo");
-		    slave.send_reliable(std::move(builder));
-		    master.receiver.async_receive(current);
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected connect");
-		},
-		[&](const bii4::address&, const beam::queue::common::port&)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected disconnect");
-		},
-		[&](bqu::UnreliableMsg::Reader)
-		{
-		    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
-		},
-		[&](bqu::ReliableMsg::Reader reader)
-		{
-		    ASSERT_STREQ("foo", reader.getValue().cStr()) << "Incorrect message value";
-		    ++reliable_count;
-		}
-	    });
-	    master.service.run();
-	};
-	slave.stop();
-    }
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	    },
+	    [&](bqu::ReliableMsg::Reader reader)
+	    {
+		ASSERT_STREQ("foo", reader.getValue().cStr()) << "Incorrect message value";
+		++reliable_count;
+	    }
+	});
+	master.service.run();
+    };
+    slave.stop();
 }
