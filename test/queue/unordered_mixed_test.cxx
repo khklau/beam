@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
-#include <limits>
 #include <string>
 #include <thread>
-#include <tuple>
+#include <unordered_set>
 #include <utility>
 #include <asio/io_service.hpp>
 #include <beam/queue/unordered_mixed.hpp>
@@ -213,7 +212,7 @@ TEST(unordered_mixed_test, basic_unreliable)
 	    {
 		std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
 		bqu::UnreliableMsg::Builder message = builder->initRoot<bqu::UnreliableMsg>();
-		message.setValue(123);
+		message.setValue(123U);
 		slave.send_unreliable(std::move(builder));
 		master.receiver.async_receive(current);
 	    },
@@ -245,6 +244,10 @@ TEST(unordered_mixed_test, basic_reliable)
     ::receiver_master master({0U, 8889U}, {24U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
+    std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message = builder->initRoot<bqu::ReliableMsg>();
+    message.setValue("foo");
+    slave.send_reliable(std::move(builder));
     std::size_t reliable_count = 0;
     while (reliable_count == 0)
     {
@@ -252,10 +255,6 @@ TEST(unordered_mixed_test, basic_reliable)
 	{
 	    [&](const ::receiver_master::receiver_type::event_handlers& current)
 	    {
-		std::unique_ptr<capnp::MallocMessageBuilder> builder(new capnp::MallocMessageBuilder());
-		bqu::ReliableMsg::Builder message = builder->initRoot<bqu::ReliableMsg>();
-		message.setValue("foo");
-		slave.send_reliable(std::move(builder));
 		master.receiver.async_receive(current);
 	    },
 	    [&](const bii4::address&, const beam::queue::common::port&)
@@ -277,6 +276,122 @@ TEST(unordered_mixed_test, basic_reliable)
 	    }
 	});
 	master.service.run();
+	master.service.reset();
+    };
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, multi_unreliable)
+{
+    ::receiver_master master({0U, 8888U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8888U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::unordered_set<uint32_t> values({123U, 456U, 789U});
+    auto iter = values.begin();
+    std::unique_ptr<capnp::MallocMessageBuilder> builder1(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message1 = builder1->initRoot<bqu::UnreliableMsg>();
+    message1.setValue(*iter);
+    slave.send_unreliable(std::move(builder1));
+    ++iter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder2(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message2 = builder2->initRoot<bqu::UnreliableMsg>();
+    message2.setValue(*iter);
+    slave.send_unreliable(std::move(builder2));
+    ++iter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder3(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message3 = builder3->initRoot<bqu::UnreliableMsg>();
+    message3.setValue(*iter);
+    slave.send_unreliable(std::move(builder3));
+    ++iter;
+    std::size_t unreliable_count = 0;
+    while (unreliable_count == 0)
+    {
+	master.receiver.async_receive(
+	{
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    {
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader reader)
+	    {
+		auto result = values.find(reader.getValue());
+		ASSERT_NE(values.end(), result) << "Incorrect message value";
+		values.erase(result);
+		++unreliable_count;
+	    },
+	    [&](bqu::ReliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	    }
+	});
+	master.service.run();
+	master.service.reset();
+    }
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, multi_reliable)
+{
+    ::receiver_master master({0U, 8889U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::unordered_set<std::string> values({"abc", "xyz", "!@#"});
+    auto iter = values.begin();
+    std::unique_ptr<capnp::MallocMessageBuilder> builder1(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message1 = builder1->initRoot<bqu::ReliableMsg>();
+    message1.setValue(*iter);
+    slave.send_reliable(std::move(builder1));
+    ++iter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder2(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message2 = builder2->initRoot<bqu::ReliableMsg>();
+    message2.setValue(*iter);
+    slave.send_reliable(std::move(builder2));
+    ++iter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder3(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message3 = builder3->initRoot<bqu::ReliableMsg>();
+    message3.setValue(*iter);
+    slave.send_reliable(std::move(builder3));
+    ++iter;
+    std::size_t reliable_count = 0;
+    std::size_t target_count = values.size();
+    while (reliable_count < target_count)
+    {
+	master.receiver.async_receive(
+	{
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    {
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	    },
+	    [&](bqu::ReliableMsg::Reader reader)
+	    {
+		auto result = values.find(reader.getValue());
+		ASSERT_NE(values.end(), result) << "Incorrect message value";
+		values.erase(result);
+		++reliable_count;
+	    }
+	});
+	master.service.run();
+	master.service.reset();
     };
     slave.stop();
 }
