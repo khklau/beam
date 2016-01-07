@@ -293,6 +293,7 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		    {
 			handlers.on_receive_reliable_msg(msg.getRoot<reliable_msg_t>());
 		    }
+		    enet_packet_destroy(event.packet);
 		    break;
 		}
 		case ENET_EVENT_TYPE_NONE:
