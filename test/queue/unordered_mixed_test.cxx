@@ -395,3 +395,130 @@ TEST(unordered_mixed_test, multi_reliable)
     };
     slave.stop();
 }
+
+TEST(unordered_mixed_test, basic_mixed)
+{
+    ::receiver_master master({0U, 8890U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8890U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::unique_ptr<capnp::MallocMessageBuilder> builder1(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message1 = builder1->initRoot<bqu::ReliableMsg>();
+    message1.setValue("bar");
+    slave.send_reliable(std::move(builder1));
+    std::unique_ptr<capnp::MallocMessageBuilder> builder2(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message2 = builder2->initRoot<bqu::UnreliableMsg>();
+    message2.setValue(999U);
+    slave.send_unreliable(std::move(builder2));
+    std::size_t reliable_count = 0;
+    std::size_t unreliable_count = 0;
+    while (reliable_count == 0 || unreliable_count == 0)
+    {
+	master.receiver.async_receive(
+	{
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    {
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader reader)
+	    {
+		ASSERT_EQ(999U, reader.getValue()) << "Incorrect unreliable message value";
+		++unreliable_count;
+	    },
+	    [&](bqu::ReliableMsg::Reader reader)
+	    {
+		ASSERT_STREQ("bar", reader.getValue().cStr()) << "Incorrect reliable message value";
+		++reliable_count;
+	    }
+	});
+	master.service.run();
+	master.service.reset();
+    };
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, multi_mixed)
+{
+    ::receiver_master master({0U, 8890U}, {24U, std::chrono::milliseconds(0)});
+    ::sender_slave slave(::localhost, 8890U, {128U, std::chrono::microseconds(0)});
+    setupConnection(master, slave);
+    std::unordered_set<std::string> reliableValues({"abc", "xyz", "!@#"});
+    auto reliableIter = reliableValues.begin();
+    std::unordered_set<uint32_t> unreliableValues({123U, 456U, 789U});
+    auto unreliableIter = unreliableValues.begin();
+    std::unique_ptr<capnp::MallocMessageBuilder> builder1(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message1 = builder1->initRoot<bqu::ReliableMsg>();
+    message1.setValue(*reliableIter);
+    slave.send_reliable(std::move(builder1));
+    ++reliableIter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder2(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message2 = builder2->initRoot<bqu::UnreliableMsg>();
+    message2.setValue(*unreliableIter);
+    slave.send_unreliable(std::move(builder2));
+    ++unreliableIter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder3(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message3 = builder3->initRoot<bqu::UnreliableMsg>();
+    message3.setValue(*unreliableIter);
+    slave.send_unreliable(std::move(builder3));
+    ++unreliableIter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder4(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message4 = builder4->initRoot<bqu::ReliableMsg>();
+    message4.setValue(*reliableIter);
+    slave.send_reliable(std::move(builder4));
+    ++reliableIter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder5(new capnp::MallocMessageBuilder());
+    bqu::ReliableMsg::Builder message5 = builder5->initRoot<bqu::ReliableMsg>();
+    message5.setValue(*reliableIter);
+    slave.send_reliable(std::move(builder5));
+    ++reliableIter;
+    std::unique_ptr<capnp::MallocMessageBuilder> builder6(new capnp::MallocMessageBuilder());
+    bqu::UnreliableMsg::Builder message6 = builder6->initRoot<bqu::UnreliableMsg>();
+    message6.setValue(*unreliableIter);
+    slave.send_unreliable(std::move(builder6));
+    ++unreliableIter;
+    std::size_t unreliable_count = 0;
+    std::size_t reliable_count = 0;
+    std::size_t reliable_target = reliableValues.size();
+    while (unreliable_count == 0 || reliable_count != reliable_target)
+    {
+	master.receiver.async_receive(
+	{
+	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    {
+		master.receiver.async_receive(current);
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const bii4::address&, const beam::queue::common::port&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](bqu::UnreliableMsg::Reader reader)
+	    {
+		auto result = unreliableValues.find(reader.getValue());
+		ASSERT_NE(unreliableValues.end(), result) << "Incorrect unreliable message value";
+		unreliableValues.erase(result);
+		++unreliable_count;
+	    },
+	    [&](bqu::ReliableMsg::Reader reader)
+	    {
+		auto result = reliableValues.find(reader.getValue());
+		ASSERT_NE(reliableValues.end(), result) << "Incorrect reliable message value";
+		reliableValues.erase(result);
+		++reliable_count;
+	    }
+	});
+	master.service.run();
+	master.service.reset();
+    };
+    slave.stop();
+}
