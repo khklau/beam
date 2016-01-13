@@ -38,9 +38,11 @@ def configure(confCtx):
     confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_ENET_SHLIB'])
     confCtx.env.product.rpath_list.append(confCtx.env['LIBPATH_TURBO_SHLIB'])
     confCtx.recurse('internet')
+    confCtx.recurse('message')
     confCtx.recurse('queue')
 
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
     buildCtx.recurse('internet')
+    buildCtx.recurse('message')
     buildCtx.recurse('queue')
