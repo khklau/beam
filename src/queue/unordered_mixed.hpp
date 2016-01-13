@@ -9,9 +9,12 @@
 #include <asio/io_service.hpp>
 #include <asio/high_resolution_timer.hpp>
 #include <beam/internet/ipv4.hpp>
+#include <beam/message/capnproto.hpp>
 #include <beam/queue/common.hpp>
+#include <capnp/common.h>
 #include <capnp/message.h>
 #include <enet/enet.h>
+#include <kj/array.h>
 
 namespace beam {
 namespace queue {
@@ -72,13 +75,14 @@ public:
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
-    send_result send_reliable(capnp::MallocMessageBuilder& message);
-    send_result send_unreliable(capnp::MallocMessageBuilder& message);
+    send_result send_reliable(beam::message::capnproto<reliable_msg_t>& message);
+    send_result send_unreliable(beam::message::capnproto<unreliable_msg_t>& message);
 private:
     void activate();
     void deactivate();
     void on_expiry(const asio::error_code& error);
-    send_result send(capnp::MallocMessageBuilder& message, channel_id::type channel);
+    static uint32_t get_packet_flags(channel_id::type channel);
+    send_result send(kj::Array<capnp::word> message, channel_id::type channel);
     static void free_message(ENetPacket* packet);
     asio::io_service& service_;
     asio::high_resolution_timer timer_;
@@ -105,8 +109,8 @@ public:
 	std::function<void(const event_handlers& current)> on_timeout;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_connect;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
-	std::function<void(typename unreliable_msg_t::Reader reader)> on_receive_unreliable_msg;
-	std::function<void(typename reliable_msg_t::Reader reader)> on_receive_reliable_msg;
+	std::function<void(typename beam::message::capnproto<unreliable_msg_t>&&)> on_receive_unreliable_msg;
+	std::function<void(typename beam::message::capnproto<reliable_msg_t>&&)> on_receive_reliable_msg;
     };
     struct perf_params
     {

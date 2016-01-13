@@ -5,31 +5,14 @@
 #include <capnp/common.h>
 #include <capnp/serialize.h>
 #include <kj/array.h>
-
-namespace {
-
-inline uint32_t get_packet_flags(beam::queue::unordered_mixed::channel_id::type channel)
-{
-    uint32_t flags = 0;
-    switch (channel)
-    {
-	case beam::queue::unordered_mixed::channel_id::unreliable:
-	    flags = ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
-	    break;
-	case beam::queue::unordered_mixed::channel_id::reliable:
-	    flags = ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
-	    break;
-    };
-    return flags;
-}
-
-} // anonymous namespace
+#include <beam/message/capnproto.hxx>
 
 namespace beam {
 namespace queue {
 namespace unordered_mixed {
 
 namespace bii4 = beam::internet::ipv4;
+namespace bme = beam::message;
 namespace bqc = beam::queue::common;
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -118,32 +101,48 @@ typename sender<unreliable_msg_t, reliable_msg_t>::disconnection_result sender<u
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
-	capnp::MallocMessageBuilder& message)
+uint32_t sender<unreliable_msg_t, reliable_msg_t>::get_packet_flags(channel_id::type channel)
 {
-    return send(message, channel_id::unreliable);
+    uint32_t flags = 0;
+    switch (channel)
+    {
+	case channel_id::unreliable:
+	    flags = ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
+	    break;
+	case channel_id::reliable:
+	    flags = ENET_PACKET_FLAG_RELIABLE | ENET_PACKET_FLAG_NO_ALLOCATE | ENET_PACKET_FLAG_UNSEQUENCED;
+	    break;
+    };
+    return flags;
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
+typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
+	beam::message::capnproto<unreliable_msg_t>& message)
+{
+    return send(std::move(message.toFlatArray()), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
-	capnp::MallocMessageBuilder& message)
+	beam::message::capnproto<reliable_msg_t>& message)
 {
-    return send(message, channel_id::reliable);
+    return send(std::move(message.toFlatArray()), channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send(
-	capnp::MallocMessageBuilder& message, channel_id::type channel)
+	kj::Array<capnp::word> message, channel_id::type channel)
 {
     if (!is_connected())
     {
 	return send_result::not_connected;
     }
-    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(messageToFlatArray(message)));
+    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(message));
     ENetPacket* packet = enet_packet_create(
 	    array->begin(),
 	    array->size() *  sizeof(capnp::word),
-	    ::get_packet_flags(channel));
+	    get_packet_flags(channel));
     packet->userData = array;
     packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_message;
     if (enet_peer_send(peer_, channel, packet) == 0)
@@ -284,14 +283,15 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		    kj::Array<capnp::word> tmp = kj::heapArray<capnp::word>(
 			    reinterpret_cast<capnp::word*>(event.packet->data),
 			    event.packet->dataLength / sizeof(capnp::word));
-		    capnp::FlatArrayMessageReader msg(tmp);
 		    if (event.channelID == channel_id::unreliable)
 		    {
-			handlers.on_receive_unreliable_msg(msg.getRoot<unreliable_msg_t>());
+			bme::capnproto<unreliable_msg_t> message(tmp);
+			handlers.on_receive_unreliable_msg(std::move(message));
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
-			handlers.on_receive_reliable_msg(msg.getRoot<reliable_msg_t>());
+			bme::capnproto<reliable_msg_t> message(tmp);
+			handlers.on_receive_reliable_msg(std::move(message));
 		    }
 		    enet_packet_destroy(event.packet);
 		    break;
