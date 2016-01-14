@@ -217,7 +217,7 @@ TEST(unordered_mixed_test, basic_unreliable)
 	    [&](const ::receiver_master::receiver_type::event_handlers& current)
 	    {
 		std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message(new bme::capnproto<bqu::UnreliableMsg>());
-		bqu::UnreliableMsg::Builder builder = message->getBuilder();
+		bqu::UnreliableMsg::Builder builder = message->get_builder();
 		builder.setValue(123U);
 		slave.send_unreliable(std::move(message));
 		master.receiver.async_receive(current);
@@ -232,7 +232,7 @@ TEST(unordered_mixed_test, basic_unreliable)
 	    },
 	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
 	    {
-		ASSERT_EQ(123U, message.getReader().getValue()) << "Incorrect message value";
+		ASSERT_EQ(123U, message.get_reader().getValue()) << "Incorrect message value";
 		++unreliable_count;
 	    },
 	    [&](bme::capnproto<bqu::ReliableMsg>&&)
@@ -251,7 +251,7 @@ TEST(unordered_mixed_test, basic_reliable)
     ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder = message->getBuilder();
+    bqu::ReliableMsg::Builder builder = message->get_builder();
     builder.setValue("foo");
     slave.send_reliable(std::move(message));
     std::size_t reliable_count = 0;
@@ -277,7 +277,7 @@ TEST(unordered_mixed_test, basic_reliable)
 	    },
 	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
 	    {
-		ASSERT_STREQ("foo", message.getReader().getValue().cStr()) << "Incorrect message value";
+		ASSERT_STREQ("foo", message.get_reader().getValue().cStr()) << "Incorrect message value";
 		++reliable_count;
 	    }
 	});
@@ -295,17 +295,17 @@ TEST(unordered_mixed_test, multi_unreliable)
     std::unordered_set<uint32_t> values({123U, 456U, 789U});
     auto iter = values.begin();
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message1(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder1 = message1->getBuilder();
+    bqu::UnreliableMsg::Builder builder1 = message1->get_builder();
     builder1.setValue(*iter);
     slave.send_unreliable(std::move(message1));
     ++iter;
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message2(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder2 = message2->getBuilder();
+    bqu::UnreliableMsg::Builder builder2 = message2->get_builder();
     builder2.setValue(*iter);
     slave.send_unreliable(std::move(message2));
     ++iter;
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message3(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder3 = message3->getBuilder();
+    bqu::UnreliableMsg::Builder builder3 = message3->get_builder();
     builder3.setValue(*iter);
     slave.send_unreliable(std::move(message3));
     ++iter;
@@ -328,7 +328,7 @@ TEST(unordered_mixed_test, multi_unreliable)
 	    },
 	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
 	    {
-		auto result = values.find(message.getReader().getValue());
+		auto result = values.find(message.get_reader().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
 		++unreliable_count;
@@ -352,17 +352,17 @@ TEST(unordered_mixed_test, multi_reliable)
     std::unordered_set<std::string> values({"abc", "xyz", "!@#"});
     auto iter = values.begin();
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message1(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder1 = message1->getBuilder();
+    bqu::ReliableMsg::Builder builder1 = message1->get_builder();
     builder1.setValue(*iter);
     slave.send_reliable(std::move(message1));
     ++iter;
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message2(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder2 = message2->getBuilder();
+    bqu::ReliableMsg::Builder builder2 = message2->get_builder();
     builder2.setValue(*iter);
     slave.send_reliable(std::move(message2));
     ++iter;
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message3(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder3 = message3->getBuilder();
+    bqu::ReliableMsg::Builder builder3 = message3->get_builder();
     builder3.setValue(*iter);
     slave.send_reliable(std::move(message3));
     ++iter;
@@ -390,7 +390,7 @@ TEST(unordered_mixed_test, multi_reliable)
 	    },
 	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
 	    {
-		auto result = values.find(message.getReader().getValue());
+		auto result = values.find(message.get_reader().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
 		++reliable_count;
@@ -408,11 +408,11 @@ TEST(unordered_mixed_test, basic_mixed)
     ::sender_slave slave(::localhost, 8890U, {128U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message1(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder1 = message1->getBuilder();
+    bqu::ReliableMsg::Builder builder1 = message1->get_builder();
     builder1.setValue("bar");
     slave.send_reliable(std::move(message1));
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message2(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder2 = message2->getBuilder();
+    bqu::UnreliableMsg::Builder builder2 = message2->get_builder();
     builder2.setValue(999U);
     slave.send_unreliable(std::move(message2));
     std::size_t reliable_count = 0;
@@ -435,12 +435,12 @@ TEST(unordered_mixed_test, basic_mixed)
 	    },
 	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
 	    {
-		ASSERT_EQ(999U, message.getReader().getValue()) << "Incorrect unreliable message value";
+		ASSERT_EQ(999U, message.get_reader().getValue()) << "Incorrect unreliable message value";
 		++unreliable_count;
 	    },
 	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
 	    {
-		ASSERT_STREQ("bar", message.getReader().getValue().cStr()) << "Incorrect reliable message value";
+		ASSERT_STREQ("bar", message.get_reader().getValue().cStr()) << "Incorrect reliable message value";
 		++reliable_count;
 	    }
 	});
@@ -460,32 +460,32 @@ TEST(unordered_mixed_test, multi_mixed)
     std::unordered_set<uint32_t> unreliableValues({123U, 456U, 789U});
     auto unreliableIter = unreliableValues.begin();
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message1(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder1 = message1->getBuilder();
+    bqu::ReliableMsg::Builder builder1 = message1->get_builder();
     builder1.setValue(*reliableIter);
     slave.send_reliable(std::move(message1));
     ++reliableIter;
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message2(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder2 = message2->getBuilder();
+    bqu::UnreliableMsg::Builder builder2 = message2->get_builder();
     builder2.setValue(*unreliableIter);
     slave.send_unreliable(std::move(message2));
     ++unreliableIter;
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message3(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder3 = message3->getBuilder();
+    bqu::UnreliableMsg::Builder builder3 = message3->get_builder();
     builder3.setValue(*unreliableIter);
     slave.send_unreliable(std::move(message3));
     ++unreliableIter;
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message4(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder4 = message4->getBuilder();
+    bqu::ReliableMsg::Builder builder4 = message4->get_builder();
     builder4.setValue(*reliableIter);
     slave.send_reliable(std::move(message4));
     ++reliableIter;
     std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message5(new bme::capnproto<bqu::ReliableMsg>());
-    bqu::ReliableMsg::Builder builder5 = message5->getBuilder();
+    bqu::ReliableMsg::Builder builder5 = message5->get_builder();
     builder5.setValue(*reliableIter);
     slave.send_reliable(std::move(message5));
     ++reliableIter;
     std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message6(new bme::capnproto<bqu::UnreliableMsg>());
-    bqu::UnreliableMsg::Builder builder6 = message6->getBuilder();
+    bqu::UnreliableMsg::Builder builder6 = message6->get_builder();
     builder6.setValue(*unreliableIter);
     slave.send_unreliable(std::move(message6));
     ++unreliableIter;
@@ -510,14 +510,14 @@ TEST(unordered_mixed_test, multi_mixed)
 	    },
 	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
 	    {
-		auto result = unreliableValues.find(message.getReader().getValue());
+		auto result = unreliableValues.find(message.get_reader().getValue());
 		ASSERT_NE(unreliableValues.end(), result) << "Incorrect unreliable message value";
 		unreliableValues.erase(result);
 		++unreliable_count;
 	    },
 	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
 	    {
-		auto result = reliableValues.find(message.getReader().getValue());
+		auto result = reliableValues.find(message.get_reader().getValue());
 		ASSERT_NE(reliableValues.end(), result) << "Incorrect reliable message value";
 		reliableValues.erase(result);
 		++reliable_count;

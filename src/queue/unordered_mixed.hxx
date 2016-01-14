@@ -120,14 +120,14 @@ template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
 	beam::message::capnproto<unreliable_msg_t>& message)
 {
-    return send(std::move(message.getSegments()), channel_id::unreliable);
+    return send(std::move(message.get_segments()), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
 	beam::message::capnproto<reliable_msg_t>& message)
 {
-    return send(std::move(message.getSegments()), channel_id::reliable);
+    return send(std::move(message.get_segments()), channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>

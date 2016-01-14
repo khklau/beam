@@ -28,19 +28,19 @@ capnproto<message_t>::capnproto(kj::ArrayPtr<capnp::word> flat) :
 }
 
 template <class message_t>
-typename message_t::Builder capnproto<message_t>::getBuilder()
+typename message_t::Builder capnproto<message_t>::get_builder()
 {
     return message_.initRoot<message_t>();
 }
 
 template <class message_t>
-typename message_t::Reader capnproto<message_t>::getReader()
+typename message_t::Reader capnproto<message_t>::get_reader()
 {
     return message_.getRoot<message_t>().asReader();
 }
 
 template <class message_t>
-kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> capnproto<message_t>::getSegments()
+kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> capnproto<message_t>::get_segments()
 {
     return message_.getSegmentsForOutput();
 }

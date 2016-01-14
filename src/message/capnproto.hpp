@@ -19,9 +19,9 @@ public:
     explicit capnproto(kj::ArrayPtr<capnp::word> flat);
     capnproto(const capnproto<message_t>&) = delete;
     capnproto<message_t>& operator=(const capnproto<message_t>&) = delete;
-    typename message_t::Builder getBuilder();
-    typename message_t::Reader getReader();
-    kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> getSegments();
+    typename message_t::Builder get_builder();
+    typename message_t::Reader get_reader();
+    kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> get_segments();
 private:
     capnp::MallocMessageBuilder message_;
 };
