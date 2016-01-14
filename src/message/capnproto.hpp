@@ -16,12 +16,12 @@ public:
     typedef message_t message_type;
     capnproto();
     explicit capnproto(kj::InputStream& input);
-    explicit capnproto(kj::Array<capnp::word>& input);
+    explicit capnproto(kj::ArrayPtr<capnp::word> flat);
     capnproto(const capnproto<message_t>&) = delete;
     capnproto<message_t>& operator=(const capnproto<message_t>&) = delete;
     typename message_t::Builder getBuilder();
     typename message_t::Reader getReader();
-    kj::Array<capnp::word> toFlatArray();
+    kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> getSegments();
 private:
     capnp::MallocMessageBuilder message_;
 };

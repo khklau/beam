@@ -20,10 +20,10 @@ capnproto<message_t>::capnproto(kj::InputStream& input) :
 }
 
 template <class message_t>
-capnproto<message_t>::capnproto(kj::Array<capnp::word>& input) :
+capnproto<message_t>::capnproto(kj::ArrayPtr<capnp::word> flat) :
 	message_()
 {
-    capnp::FlatArrayMessageReader reader(input);
+    capnp::FlatArrayMessageReader reader(flat);
     message_.setRoot(reader.getRoot<message_t>());
 }
 
@@ -40,9 +40,9 @@ typename message_t::Reader capnproto<message_t>::getReader()
 }
 
 template <class message_t>
-kj::Array<capnp::word> capnproto<message_t>::toFlatArray()
+kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> capnproto<message_t>::getSegments()
 {
-    return std::move(messageToFlatArray(message_));
+    return message_.getSegmentsForOutput();
 }
 
 } // namespace message
