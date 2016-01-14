@@ -78,6 +78,8 @@ public:
     send_result send_reliable(beam::message::capnproto<reliable_msg_t>& message);
     send_result send_unreliable(beam::message::capnproto<unreliable_msg_t>& message);
 private:
+    sender(const sender&) = delete;
+    sender& operator=(const sender&) = delete;
     void activate();
     void deactivate();
     void on_expiry(const asio::error_code& error);
@@ -129,6 +131,8 @@ public:
     void unbind();
     void async_receive(const event_handlers& handlers);
 private:
+    receiver(const receiver&) = delete;
+    receiver& operator=(const receiver&) = delete;
     void check_events(const event_handlers handlers);
     asio::io_service& service_;
     perf_params params_;

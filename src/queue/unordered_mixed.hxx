@@ -51,7 +51,12 @@ sender<unreliable_msg_t, reliable_msg_t>::~sender()
     {
 	disconnect();
     }
-    enet_host_destroy(host_);
+    if (host_ != nullptr)
+    {
+	enet_host_destroy(host_);
+    }
+    service_.stop();
+    service_.reset();
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -219,6 +224,12 @@ receiver<unreliable_msg_t, reliable_msg_t>::~receiver()
     {
 	unbind();
     }
+    if (host_ != nullptr)
+    {
+	enet_host_destroy(host_);
+    }
+    service_.stop();
+    service_.reset();
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
