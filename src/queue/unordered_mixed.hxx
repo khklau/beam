@@ -120,25 +120,25 @@ template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
 	beam::message::capnproto<unreliable_msg_t>& message)
 {
-    return send(std::move(message.toFlatArray()), channel_id::unreliable);
+    return send(std::move(message.getSegments()), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
 	beam::message::capnproto<reliable_msg_t>& message)
 {
-    return send(std::move(message.toFlatArray()), channel_id::reliable);
+    return send(std::move(message.getSegments()), channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send(
-	kj::Array<capnp::word> message, channel_id::type channel)
+	kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel)
 {
     if (!is_connected())
     {
 	return send_result::not_connected;
     }
-    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(message));
+    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(messageToFlatArray(message)));
     ENetPacket* packet = enet_packet_create(
 	    array->begin(),
 	    array->size() *  sizeof(capnp::word),
@@ -280,7 +280,7 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		}
 		case ENET_EVENT_TYPE_RECEIVE:
 		{
-		    kj::Array<capnp::word> tmp = kj::heapArray<capnp::word>(
+		    kj::ArrayPtr<capnp::word> tmp(
 			    reinterpret_cast<capnp::word*>(event.packet->data),
 			    event.packet->dataLength / sizeof(capnp::word));
 		    if (event.channelID == channel_id::unreliable)

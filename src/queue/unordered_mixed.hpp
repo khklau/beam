@@ -82,7 +82,7 @@ private:
     void deactivate();
     void on_expiry(const asio::error_code& error);
     static uint32_t get_packet_flags(channel_id::type channel);
-    send_result send(kj::Array<capnp::word> message, channel_id::type channel);
+    send_result send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel);
     static void free_message(ENetPacket* packet);
     asio::io_service& service_;
     asio::high_resolution_timer timer_;
