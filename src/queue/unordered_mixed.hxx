@@ -6,6 +6,7 @@
 #include <capnp/serialize.h>
 #include <kj/array.h>
 #include <beam/message/capnproto.hxx>
+#include <turbo/toolset/extension.hpp>
 
 namespace beam {
 namespace queue {
@@ -251,8 +252,9 @@ typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreli
 template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::unbind()
 {
-    enet_host_destroy(host_);
-    host_ = nullptr;
+    service_.post(std::bind(
+	    &receiver<unreliable_msg_t, reliable_msg_t>::exec_unbind,
+	    this));
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -265,8 +267,19 @@ void receiver<unreliable_msg_t, reliable_msg_t>::async_receive(const event_handl
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
+void receiver<unreliable_msg_t, reliable_msg_t>::exec_unbind()
+{
+    enet_host_destroy(host_);
+    host_ = nullptr;
+}
+
+template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handlers handlers)
 {
+    if (TURBO_UNLIKELY(!is_bound()))
+    {
+	return;
+    }
     ENetEvent event;
     int occurrance = enet_host_service(host_, &event, params_.wait_amount.count());
     if (occurrance == 0)

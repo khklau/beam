@@ -133,6 +133,7 @@ public:
 private:
     receiver(const receiver&) = delete;
     receiver& operator=(const receiver&) = delete;
+    void exec_unbind();
     void check_events(const event_handlers handlers);
     asio::io_service& service_;
     perf_params params_;
