@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <asio/io_service.hpp>
@@ -111,8 +112,8 @@ public:
 	std::function<void(const event_handlers& current)> on_timeout;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_connect;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
-	std::function<void(typename beam::message::capnproto<unreliable_msg_t>&&)> on_receive_unreliable_msg;
-	std::function<void(typename beam::message::capnproto<reliable_msg_t>&&)> on_receive_reliable_msg;
+	std::function<void(std::unique_ptr<beam::message::capnproto<unreliable_msg_t>>)> on_receive_unreliable_msg;
+	std::function<void(std::unique_ptr<beam::message::capnproto<reliable_msg_t>>)> on_receive_reliable_msg;
     };
     struct perf_params
     {

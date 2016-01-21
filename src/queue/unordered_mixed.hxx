@@ -309,12 +309,12 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 			    event.packet->dataLength / sizeof(capnp::word));
 		    if (event.channelID == channel_id::unreliable)
 		    {
-			bme::capnproto<unreliable_msg_t> message(tmp);
+			std::unique_ptr<bme::capnproto<unreliable_msg_t>> message(new bme::capnproto<unreliable_msg_t>(tmp));
 			handlers.on_receive_unreliable_msg(std::move(message));
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
-			bme::capnproto<reliable_msg_t> message(tmp);
+			std::unique_ptr<bme::capnproto<reliable_msg_t>> message(new bme::capnproto<reliable_msg_t>(tmp));
 			handlers.on_receive_reliable_msg(std::move(message));
 		    }
 		    enet_packet_destroy(event.packet);

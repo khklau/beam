@@ -188,11 +188,11 @@ void setupConnection(::receiver_master& master, ::sender_slave& slave)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -230,12 +230,12 @@ TEST(unordered_mixed_test, basic_unreliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message)
 	    {
-		ASSERT_EQ(123U, message.get_reader().getValue()) << "Incorrect message value";
+		ASSERT_EQ(123U, message->get_reader().getValue()) << "Incorrect message value";
 		++unreliable_count;
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -271,13 +271,13 @@ TEST(unordered_mixed_test, basic_reliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message)
 	    {
-		ASSERT_STREQ("foo", message.get_reader().getValue().cStr()) << "Incorrect message value";
+		ASSERT_STREQ("foo", message->get_reader().getValue().cStr()) << "Incorrect message value";
 		++reliable_count;
 	    }
 	});
@@ -326,14 +326,14 @@ TEST(unordered_mixed_test, multi_unreliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message)
 	    {
-		auto result = values.find(message.get_reader().getValue());
+		auto result = values.find(message->get_reader().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
 		++unreliable_count;
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -384,13 +384,13 @@ TEST(unordered_mixed_test, multi_reliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&&)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message)
 	    {
-		auto result = values.find(message.get_reader().getValue());
+		auto result = values.find(message->get_reader().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
 		++reliable_count;
@@ -433,14 +433,14 @@ TEST(unordered_mixed_test, basic_mixed)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message)
 	    {
-		ASSERT_EQ(999U, message.get_reader().getValue()) << "Incorrect unreliable message value";
+		ASSERT_EQ(999U, message->get_reader().getValue()) << "Incorrect unreliable message value";
 		++unreliable_count;
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message)
 	    {
-		ASSERT_STREQ("bar", message.get_reader().getValue().cStr()) << "Incorrect reliable message value";
+		ASSERT_STREQ("bar", message->get_reader().getValue().cStr()) << "Incorrect reliable message value";
 		++reliable_count;
 	    }
 	});
@@ -508,16 +508,16 @@ TEST(unordered_mixed_test, multi_mixed)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::capnproto<bqu::UnreliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::UnreliableMsg>> message)
 	    {
-		auto result = unreliableValues.find(message.get_reader().getValue());
+		auto result = unreliableValues.find(message->get_reader().getValue());
 		ASSERT_NE(unreliableValues.end(), result) << "Incorrect unreliable message value";
 		unreliableValues.erase(result);
 		++unreliable_count;
 	    },
-	    [&](bme::capnproto<bqu::ReliableMsg>&& message)
+	    [&](std::unique_ptr<bme::capnproto<bqu::ReliableMsg>> message)
 	    {
-		auto result = reliableValues.find(message.get_reader().getValue());
+		auto result = reliableValues.find(message->get_reader().getValue());
 		ASSERT_NE(reliableValues.end(), result) << "Incorrect reliable message value";
 		reliableValues.erase(result);
 		++reliable_count;
