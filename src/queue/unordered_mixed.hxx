@@ -56,8 +56,6 @@ sender<unreliable_msg_t, reliable_msg_t>::~sender()
     {
 	enet_host_destroy(host_);
     }
-    service_.stop();
-    service_.reset();
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -229,8 +227,6 @@ receiver<unreliable_msg_t, reliable_msg_t>::~receiver()
     {
 	enet_host_destroy(host_);
     }
-    service_.stop();
-    service_.reset();
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
