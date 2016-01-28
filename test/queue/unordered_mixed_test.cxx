@@ -48,6 +48,7 @@ private:
     bqc::port port_;
     std::thread* thread_;
     asio::io_service service_;
+    asio::io_service::strand strand_;
     sender_type sender_;
     unreliable_queue_type unreliable_queue_;
     reliable_queue_type reliable_queue_;
@@ -60,6 +61,7 @@ struct receiver_master
     ~receiver_master();
     void bind(bqc::endpoint&& point);
     asio::io_service service;
+    asio::io_service::strand strand;
     receiver_type receiver;
 };
 
@@ -68,7 +70,8 @@ sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_t
 	port_(port),
 	thread_(nullptr),
 	service_(),
-	sender_(service_, {std::bind(&sender_slave::on_disconnect, this)}, params),
+	strand_(service_),
+	sender_(service_, strand_, {std::bind(&sender_slave::on_disconnect, this)}, params),
 	unreliable_queue_(128),
 	reliable_queue_(128)
 { }
@@ -149,7 +152,8 @@ void sender_slave::on_disconnect()
 
 receiver_master::receiver_master(bqc::endpoint&& point, receiver_type::perf_params&& params) :
 	service(),
-	receiver(service, std::move(params))
+	strand(service),
+	receiver(service, strand, std::move(params))
 {
     bind(std::move(point));
 }

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <asio/io_service.hpp>
+#include <asio/strand.hpp>
 #include <asio/high_resolution_timer.hpp>
 #include <beam/internet/ipv4.hpp>
 #include <beam/message/capnproto.hpp>
@@ -71,7 +72,7 @@ public:
 	std::size_t in_bytes_per_sec;
 	std::size_t out_bytes_per_sec;
     };
-    sender(asio::io_service& service, const event_handlers& handlers, const perf_params& params);
+    sender(asio::io_service& service, asio::io_service::strand& strand, const event_handlers& handlers, const perf_params& params);
     ~sender();
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
@@ -88,6 +89,7 @@ private:
     send_result send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel);
     static void free_message(ENetPacket* packet);
     asio::io_service& service_;
+    asio::io_service::strand& strand_;
     asio::high_resolution_timer timer_;
     event_handlers handlers_;
     perf_params params_;
@@ -125,7 +127,7 @@ public:
 	std::size_t in_bytes_per_sec;
 	std::size_t out_bytes_per_sec;
     };
-    receiver(asio::io_service& service, perf_params&& params);
+    receiver(asio::io_service& service, asio::io_service::strand& strand, perf_params&& params);
     ~receiver();
     inline bool is_bound() const { return host_ != nullptr; }
     bind_result bind(const beam::queue::common::endpoint& point);
@@ -137,6 +139,7 @@ private:
     void exec_unbind();
     void check_events(const event_handlers handlers);
     asio::io_service& service_;
+    asio::io_service::strand& strand_;
     perf_params params_;
     ENetHost* host_;
 };

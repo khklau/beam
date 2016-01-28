@@ -30,8 +30,9 @@ sender<unreliable_msg_t, reliable_msg_t>::sender::perf_params::perf_params(
 { }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, const event_handlers& handlers, const perf_params& params) :
+sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, asio::io_service::strand& strand, const event_handlers& handlers, const perf_params& params) :
 	service_(service),
+	strand_(strand),
 	timer_(service_),
 	handlers_(handlers),
 	params_(params),
@@ -168,7 +169,7 @@ void sender<unreliable_msg_t, reliable_msg_t>::activate()
 	    this,
 	    std::placeholders::_1);
     timer_.expires_from_now(params_.sleep_amount);
-    timer_.async_wait(handler);
+    timer_.async_wait(strand_.wrap(handler));
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -210,8 +211,9 @@ void sender<unreliable_msg_t, reliable_msg_t>::free_message(ENetPacket* packet)
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service& service, perf_params&& params) :
+receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service& service, asio::io_service::strand& strand, perf_params&& params) :
 	service_(service),
+	strand_(strand),
 	params_(std::move(params)),
 	host_(nullptr)
 { }
@@ -248,18 +250,18 @@ typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreli
 template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::unbind()
 {
-    service_.post(std::bind(
+    service_.post(strand_.wrap(std::bind(
 	    &receiver<unreliable_msg_t, reliable_msg_t>::exec_unbind,
-	    this));
+	    this)));
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::async_receive(const event_handlers& handlers)
 {
-    service_.post(std::bind(
+    service_.post(strand_.wrap(std::bind(
 	    &receiver<unreliable_msg_t, reliable_msg_t>::check_events,
 	    this,
-	    handlers));
+	    handlers)));
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
