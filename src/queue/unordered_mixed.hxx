@@ -30,10 +30,9 @@ sender<unreliable_msg_t, reliable_msg_t>::sender::perf_params::perf_params(
 { }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service& service, asio::io_service::strand& strand, const event_handlers& handlers, const perf_params& params) :
-	service_(service),
+sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service::strand& strand, const event_handlers& handlers, const perf_params& params) :
 	strand_(strand),
-	timer_(service_),
+	timer_(strand_.get_io_service()),
 	handlers_(handlers),
 	params_(params),
 	host_(nullptr),
@@ -211,8 +210,7 @@ void sender<unreliable_msg_t, reliable_msg_t>::free_message(ENetPacket* packet)
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service& service, asio::io_service::strand& strand, perf_params&& params) :
-	service_(service),
+receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
 	params_(std::move(params)),
 	host_(nullptr)
@@ -250,7 +248,7 @@ typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreli
 template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::unbind()
 {
-    service_.post(strand_.wrap(std::bind(
+    strand_.post(strand_.wrap(std::bind(
 	    &receiver<unreliable_msg_t, reliable_msg_t>::exec_unbind,
 	    this)));
 }
@@ -258,7 +256,7 @@ void receiver<unreliable_msg_t, reliable_msg_t>::unbind()
 template <class unreliable_msg_t, class reliable_msg_t>
 void receiver<unreliable_msg_t, reliable_msg_t>::async_receive(const event_handlers& handlers)
 {
-    service_.post(strand_.wrap(std::bind(
+    strand_.post(strand_.wrap(std::bind(
 	    &receiver<unreliable_msg_t, reliable_msg_t>::check_events,
 	    this,
 	    handlers)));

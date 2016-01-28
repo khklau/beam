@@ -71,7 +71,7 @@ sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_t
 	thread_(nullptr),
 	service_(),
 	strand_(service_),
-	sender_(service_, strand_, {std::bind(&sender_slave::on_disconnect, this)}, params),
+	sender_(strand_, {std::bind(&sender_slave::on_disconnect, this)}, params),
 	unreliable_queue_(128),
 	reliable_queue_(128)
 { }
@@ -153,7 +153,7 @@ void sender_slave::on_disconnect()
 receiver_master::receiver_master(bqc::endpoint&& point, receiver_type::perf_params&& params) :
 	service(),
 	strand(service),
-	receiver(service, strand, std::move(params))
+	receiver(strand, std::move(params))
 {
     bind(std::move(point));
 }
