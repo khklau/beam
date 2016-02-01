@@ -188,7 +188,7 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 	{
 	    case ENET_EVENT_TYPE_DISCONNECT:
 	    {
-		handlers_.on_disconnect();
+		handlers_.on_disconnect(event.peer->address.host, event.peer->address.port);
 		deactivate();
 		break;
 	    }

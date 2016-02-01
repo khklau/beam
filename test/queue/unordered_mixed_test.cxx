@@ -43,7 +43,7 @@ private:
     void brake();
     void on_send_unreliable();
     void on_send_reliable();
-    void on_disconnect();
+    void on_disconnect(const bii4::address&, const beam::queue::common::port&);
     bii4::address address_;
     bqc::port port_;
     std::thread* thread_;
@@ -71,7 +71,7 @@ sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_t
 	thread_(nullptr),
 	service_(),
 	strand_(service_),
-	sender_(strand_, {std::bind(&sender_slave::on_disconnect, this)}, params),
+	sender_(strand_, {std::bind(&sender_slave::on_disconnect, this, std::placeholders::_1, std::placeholders::_2)}, params),
 	unreliable_queue_(128),
 	reliable_queue_(128)
 { }
@@ -145,7 +145,7 @@ void sender_slave::on_send_reliable()
     sender_.send_reliable(*message);
 }
 
-void sender_slave::on_disconnect()
+void sender_slave::on_disconnect(const bii4::address&, const beam::queue::common::port&)
 {
     GTEST_FATAL_FAILURE_("Unexpected disconnect");
 }

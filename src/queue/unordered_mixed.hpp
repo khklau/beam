@@ -57,7 +57,7 @@ public:
     };
     struct event_handlers
     {
-	std::function<void()> on_disconnect;
+	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
     };
     struct perf_params
     {
