@@ -9,7 +9,7 @@ namespace common {
 
 typedef uint16_t port;
 
-struct endpoint
+struct endpoint_id
 {
     beam::internet::ipv4::address address;
     beam::queue::common::port port;
@@ -22,9 +22,9 @@ struct endpoint
 namespace std {
 
 template<>
-struct hash<beam::queue::common::endpoint>
+struct hash<beam::queue::common::endpoint_id>
 {
-    std::size_t operator()(beam::queue::common::endpoint value) const
+    std::size_t operator()(beam::queue::common::endpoint_id value) const
     {
 	uint64_t tmp = value.address;
 	tmp = (tmp << 32) + value.port;

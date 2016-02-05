@@ -230,7 +230,7 @@ receiver<unreliable_msg_t, reliable_msg_t>::~receiver()
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreliable_msg_t, reliable_msg_t>::bind(const bqc::endpoint& point)
+typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreliable_msg_t, reliable_msg_t>::bind(const bqc::endpoint_id& point)
 {
     if (is_bound())
     {

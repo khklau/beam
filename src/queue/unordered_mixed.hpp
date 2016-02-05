@@ -129,7 +129,7 @@ public:
     receiver(asio::io_service::strand& strand, perf_params&& params);
     ~receiver();
     inline bool is_bound() const { return host_ != nullptr; }
-    bind_result bind(const beam::queue::common::endpoint& point);
+    bind_result bind(const beam::queue::common::endpoint_id& point);
     void unbind();
     void async_receive(const event_handlers& handlers);
 private:

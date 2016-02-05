@@ -57,9 +57,9 @@ private:
 struct receiver_master
 {
     typedef bqu::receiver<bqu::UnreliableMsg, bqu::ReliableMsg> receiver_type;
-    receiver_master(bqc::endpoint&& point, receiver_type::perf_params&& params);
+    receiver_master(bqc::endpoint_id&& point, receiver_type::perf_params&& params);
     ~receiver_master();
-    void bind(bqc::endpoint&& point);
+    void bind(bqc::endpoint_id&& point);
     asio::io_service service;
     asio::io_service::strand strand;
     receiver_type receiver;
@@ -150,7 +150,7 @@ void sender_slave::on_disconnect(const bii4::address&, const beam::queue::common
     GTEST_FATAL_FAILURE_("Unexpected disconnect");
 }
 
-receiver_master::receiver_master(bqc::endpoint&& point, receiver_type::perf_params&& params) :
+receiver_master::receiver_master(bqc::endpoint_id&& point, receiver_type::perf_params&& params) :
 	service(),
 	strand(service),
 	receiver(strand, std::move(params))
@@ -166,7 +166,7 @@ receiver_master::~receiver_master()
     }
 }
 
-void receiver_master::bind(bqc::endpoint&& point)
+void receiver_master::bind(bqc::endpoint_id&& point)
 {
     ASSERT_EQ(receiver_type::bind_result::success, receiver.bind(point)) << "Bind failed";
 }
