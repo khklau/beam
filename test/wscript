@@ -8,7 +8,9 @@ def options(optCtx):
 def configure(confCtx):
     confCtx.env.product = Product.fromContext(confCtx, NAME, confCtx.env.solution)
     confCtx.recurse('queue')
+    confCtx.recurse('duplex')
 
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
     buildCtx.recurse('queue')
+    buildCtx.recurse('duplex')

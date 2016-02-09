@@ -40,9 +40,11 @@ def configure(confCtx):
     confCtx.recurse('internet')
     confCtx.recurse('message')
     confCtx.recurse('queue')
+    confCtx.recurse('duplex')
 
 def build(buildCtx):
     buildCtx.env.product = buildCtx.env.solution.getProduct(NAME)
     buildCtx.recurse('internet')
     buildCtx.recurse('message')
     buildCtx.recurse('queue')
+    buildCtx.recurse('duplex')
