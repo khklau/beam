@@ -162,10 +162,7 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
 template <class in_connection_t, class out_connection_t>
 void initiator<in_connection_t, out_connection_t>::async_send(std::function<void(out_connection_t&)> callback)
 {
-    if (TURBO_LIKELY(out_))
-    {
-	strand_.post(std::bind(&initiator<in_connection_t, out_connection_t>::exec_send, this, callback));
-    }
+    strand_.post(std::bind(&initiator<in_connection_t, out_connection_t>::exec_send, this, callback));
 }
 
 template <class in_connection_t, class out_connection_t>
@@ -186,6 +183,10 @@ void initiator<in_connection_t, out_connection_t>::exec_send(std::function<void(
 template <class in_connection_t, class out_connection_t>
 void initiator<in_connection_t, out_connection_t>::exec_receive(const typename in_connection_t::event_handlers& handlers)
 {
+    if (TURBO_UNLIKELY(!host_))
+    {
+	return;
+    }
     ENetEvent event;
     int occurrance = enet_host_service(host_.get(), &event, 0);
     if (occurrance == 0)
@@ -234,7 +235,7 @@ void initiator<in_connection_t, out_connection_t>::exec_receive(const typename i
                     break;
                 }
             }
-            occurrance = enet_host_exec_receive(host_.get(), &event);
+            occurrance = enet_host_check_events(host_.get(), &event);
         }
         while (occurrance > 0);
     }
@@ -280,12 +281,15 @@ void responder<in_connection_t, out_connection_t>::unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
+void responder<in_connection_t, out_connection_t>::async_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback)
+{
+    strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, id, callback));
+}
+
+template <class in_connection_t, class out_connection_t>
 void responder<in_connection_t, out_connection_t>::async_receive(const typename in_connection_t::event_handlers& handlers)
 {
-    strand_.post(std::bind(
-            &responder<in_connection_t, out_connection_t>::exec_receive,
-            this,
-            handlers));
+    strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_receive, this, handlers));
 }
 
 template <class in_connection_t, class out_connection_t>
@@ -295,9 +299,24 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
+void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback)
+{
+    if (TURBO_UNLIKELY(!host_))
+    {
+	return;
+    }
+    auto iter = peer_map_.find(id);
+    if (iter != peer_map_.end())
+    {
+	out_connection_t out(strand_, *host_, iter->second);
+	callback(out);
+    }
+}
+
+template <class in_connection_t, class out_connection_t>
 void responder<in_connection_t, out_connection_t>::exec_receive(const typename in_connection_t::event_handlers& handlers)
 {
-    if (!host_)
+    if (TURBO_UNLIKELY(!host_))
     {
 	return;
     }
@@ -368,7 +387,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                     break;
                 }
             }
-            occurrance = enet_host_exec_receive(host_.get(), &event);
+            occurrance = enet_host_check_events(host_.get(), &event);
         }
         while (occurrance > 0);
     }

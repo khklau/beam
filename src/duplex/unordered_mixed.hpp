@@ -124,12 +124,14 @@ public:
     inline bool has_connections() const { return !peer_map_.empty(); }
     bind_result bind(const beam::duplex::common::identity& id);
     void unbind();
+    void async_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
     responder() = delete;
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
     void exec_unbind();
+    void exec_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback);
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
