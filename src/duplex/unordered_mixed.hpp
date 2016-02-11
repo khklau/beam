@@ -121,6 +121,7 @@ public:
     typedef out_connection_t out_connection_type;
     responder(asio::io_service::strand& strand, perf_params&& params);
     inline bool is_bound() const { return host_; }
+    inline bool has_connections() const { return !peer_map_.empty(); }
     bind_result bind(const beam::duplex::common::identity& id);
     void unbind();
     void async_receive(const typename in_connection_t::event_handlers& handlers);
