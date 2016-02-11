@@ -162,23 +162,29 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
 template <class in_connection_t, class out_connection_t>
 void initiator<in_connection_t, out_connection_t>::async_send(std::function<void(out_connection_t&)> callback)
 {
-    if (out_)
+    if (TURBO_LIKELY(out_))
     {
-	strand_.post(callback);
+	strand_.post(std::bind(&initiator<in_connection_t, out_connection_t>::exec_send, this, callback));
     }
 }
 
 template <class in_connection_t, class out_connection_t>
 void initiator<in_connection_t, out_connection_t>::async_receive(const typename in_connection_t::event_handlers& handlers)
 {
-    strand_.post(std::bind(
-            &initiator<in_connection_t, out_connection_t>::check_events,
-            this,
-            handlers));
+    strand_.post(std::bind(&initiator<in_connection_t, out_connection_t>::exec_receive, this, handlers));
 }
 
 template <class in_connection_t, class out_connection_t>
-void initiator<in_connection_t, out_connection_t>::check_events(const typename in_connection_t::event_handlers& handlers)
+void initiator<in_connection_t, out_connection_t>::exec_send(std::function<void(out_connection_t&)> callback)
+{
+    if (TURBO_LIKELY(out_))
+    {
+	callback(*out_);
+    }
+}
+
+template <class in_connection_t, class out_connection_t>
+void initiator<in_connection_t, out_connection_t>::exec_receive(const typename in_connection_t::event_handlers& handlers)
 {
     ENetEvent event;
     int occurrance = enet_host_service(host_.get(), &event, 0);
@@ -228,7 +234,7 @@ void initiator<in_connection_t, out_connection_t>::check_events(const typename i
                     break;
                 }
             }
-            occurrance = enet_host_check_events(host_.get(), &event);
+            occurrance = enet_host_exec_receive(host_.get(), &event);
         }
         while (occurrance > 0);
     }
@@ -277,7 +283,7 @@ template <class in_connection_t, class out_connection_t>
 void responder<in_connection_t, out_connection_t>::async_receive(const typename in_connection_t::event_handlers& handlers)
 {
     strand_.post(std::bind(
-            &responder<in_connection_t, out_connection_t>::check_events,
+            &responder<in_connection_t, out_connection_t>::exec_receive,
             this,
             handlers));
 }
@@ -289,7 +295,7 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::check_events(const typename in_connection_t::event_handlers& handlers)
+void responder<in_connection_t, out_connection_t>::exec_receive(const typename in_connection_t::event_handlers& handlers)
 {
     if (!host_)
     {
@@ -362,7 +368,7 @@ void responder<in_connection_t, out_connection_t>::check_events(const typename i
                     break;
                 }
             }
-            occurrance = enet_host_check_events(host_.get(), &event);
+            occurrance = enet_host_exec_receive(host_.get(), &event);
         }
         while (occurrance > 0);
     }

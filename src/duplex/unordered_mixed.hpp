@@ -97,7 +97,8 @@ private:
     initiator() = delete;
     initiator(const initiator&) = delete;
     initiator& operator=(const initiator&) = delete;
-    void check_events(const typename in_connection_t::event_handlers& handlers);
+    void exec_send(std::function<void(out_connection_t&)> callback);
+    void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
@@ -128,7 +129,7 @@ private:
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
     void exec_unbind();
-    void check_events(const typename in_connection_t::event_handlers& handlers);
+    void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
