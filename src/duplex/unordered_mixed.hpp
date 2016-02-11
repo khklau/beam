@@ -4,6 +4,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include <asio/strand.hpp>
 #include <beam/duplex/common.hpp>
 #include <beam/internet/ipv4.hpp>
@@ -88,6 +89,7 @@ public:
     typedef in_connection_t in_connection_type;
     typedef out_connection_t out_connection_type;
     initiator(asio::io_service::strand& strand, perf_params&& params);
+    inline bool is_connected() const { return peer_; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::duplex::common::port port, std::chrono::milliseconds timeout);
     void async_send(std::function<void(out_connection_t&)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
@@ -97,23 +99,40 @@ private:
     initiator& operator=(const initiator&) = delete;
     void check_events(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
+    perf_params params_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unique_ptr<ENetPeer, std::function<void(ENetPeer*)>> peer_;
     std::unique_ptr<out_connection_t> out_;
+};
+
+enum class bind_result
+{
+    success,
+    already_bound,
+    failure
 };
 
 template <class in_connection_t, class out_connection_t>
 class responder
 {
 public:
-    responder(asio::io_service::strand& strand, const beam::duplex::common::identity& id, perf_params&& params);
-    ~responder();
+    typedef in_connection_t in_connection_type;
+    typedef out_connection_t out_connection_type;
+    responder(asio::io_service::strand& strand, perf_params&& params);
+    inline bool is_bound() const { return host_; }
+    bind_result bind(const beam::duplex::common::identity& id);
+    void unbind();
+    void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
     responder() = delete;
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
+    void exec_unbind();
+    void check_events(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
-    ENetHost* host_;
+    perf_params params_;
+    std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
+    std::unordered_map<beam::duplex::common::identity, ENetPeer*> peer_map_;
 };
 
 } // namespace unordered_mixed

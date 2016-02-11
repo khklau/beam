@@ -106,6 +106,7 @@ perf_params::perf_params(std::size_t max, std::size_t download, std::size_t uplo
 template <class in_connection_t, class out_connection_t>
 initiator<in_connection_t, out_connection_t>::initiator(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
+	params_(std::move(params)),
 	host_(),
 	peer_(),
 	out_()
@@ -234,24 +235,136 @@ void initiator<in_connection_t, out_connection_t>::check_events(const typename i
 }
 
 template <class in_connection_t, class out_connection_t>
-responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand& strand, const beam::duplex::common::identity& id, perf_params&& params) :
+responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
-	host_(nullptr)
+	params_(std::move(params)),
+	host_(nullptr),
+	peer_map_()
 {
-    ENetAddress address{id.address, id.port};
-    host_ = enet_host_create(&address, params.max_connections, 2, params.download_bytes_per_sec, params.upload_bytes_per_sec);
-    if (host_ == nullptr)
+    peer_map_.reserve(params.max_connections);
+}
+
+template <class in_connection_t, class out_connection_t>
+bind_result responder<in_connection_t, out_connection_t>::bind(const beam::duplex::common::identity& id)
+{
+    if (is_bound())
     {
-	throw std::runtime_error("Transport layer endpoint initialisation failed");
+	return bind_result::already_bound;
+    }
+    ENetAddress address{id.address, id.port};
+    ENetHost* host = enet_host_create(&address, params_.max_connections, 2, params_.download_bytes_per_sec, params_.upload_bytes_per_sec);
+    if (host == nullptr)
+    {
+	return bind_result::failure;
+    }
+    else
+    {
+	host_.reset(host, [](ENetHost* host)
+	{
+	    enet_host_destroy(host);
+	});
+	return bind_result::success;
     }
 }
 
 template <class in_connection_t, class out_connection_t>
-responder<in_connection_t, out_connection_t>::~responder()
+void responder<in_connection_t, out_connection_t>::unbind()
 {
-    if (host_ != nullptr)
+    strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_unbind, this));
+}
+
+template <class in_connection_t, class out_connection_t>
+void responder<in_connection_t, out_connection_t>::async_receive(const typename in_connection_t::event_handlers& handlers)
+{
+    strand_.post(std::bind(
+            &responder<in_connection_t, out_connection_t>::check_events,
+            this,
+            handlers));
+}
+
+template <class in_connection_t, class out_connection_t>
+void responder<in_connection_t, out_connection_t>::exec_unbind()
+{
+    host_.reset();
+}
+
+template <class in_connection_t, class out_connection_t>
+void responder<in_connection_t, out_connection_t>::check_events(const typename in_connection_t::event_handlers& handlers)
+{
+    if (!host_)
     {
-	enet_host_destroy(host_);
+	return;
+    }
+    ENetEvent event;
+    int occurrance = enet_host_service(host_.get(), &event, 0);
+    if (occurrance == 0)
+    {
+        handlers.on_timeout(handlers);
+    }
+    else
+    {
+        do
+        {
+            switch (event.type)
+            {
+                case ENET_EVENT_TYPE_DISCONNECT:
+                {
+		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    auto iter = peer_map_.find(id);
+		    if (iter != peer_map_.end())
+		    {
+			in_connection_t in(strand_, *host_, iter->second);
+			handlers.on_disconnect(in);
+		    }
+                    break;
+                }
+                case ENET_EVENT_TYPE_CONNECT:
+                {
+		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    auto iter = peer_map_.find(id);
+		    if (iter == peer_map_.end())
+		    {
+			peer_map_.emplace(*host_, event.peer);
+			in_connection_t in(strand_, *host_, event.peer);
+			handlers.on_connect(in);
+		    }
+                    break;
+                }
+                case ENET_EVENT_TYPE_RECEIVE:
+                {
+		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    auto iter = peer_map_.find(id);
+		    if (iter == peer_map_.end())
+		    {
+			break;
+		    }
+		    in_connection_t in(strand_, *host_, iter->second);
+                    kj::ArrayPtr<capnp::word> tmp(
+                            reinterpret_cast<capnp::word*>(event.packet->data),
+                            event.packet->dataLength / sizeof(capnp::word));
+                    if (event.channelID == channel_id::unreliable)
+                    {
+                        std::unique_ptr<bme::capnproto<typename in_connection_t::unreliable_msg_type>> message(
+				new bme::capnproto<typename in_connection_t::unreliable_msg_type>(tmp));
+                        handlers.on_receive_unreliable_msg(in, std::move(message));
+                    }
+                    else if (event.channelID == channel_id::reliable)
+                    {
+                        std::unique_ptr<bme::capnproto<typename in_connection_t::reliable_msg_type>> message(
+				new bme::capnproto<typename in_connection_t::reliable_msg_type>(tmp));
+                        handlers.on_receive_reliable_msg(in, std::move(message));
+                    }
+                    enet_packet_destroy(event.packet);
+                    break;
+                }
+                case ENET_EVENT_TYPE_NONE:
+                {
+                    break;
+                }
+            }
+            occurrance = enet_host_check_events(host_.get(), &event);
+        }
+        while (occurrance > 0);
     }
 }
 
