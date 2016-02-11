@@ -31,7 +31,7 @@ in_connection<unreliable_msg_t, reliable_msg_t>::in_connection(const key&, asio:
 { }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-beam::duplex::common::identity in_connection<unreliable_msg_t, reliable_msg_t>::get_endpoint_id() const
+beam::duplex::common::endpoint_id in_connection<unreliable_msg_t, reliable_msg_t>::get_endpoint_id() const
 {
     return { peer_.address.host, peer_.address.port };
 }
@@ -253,7 +253,7 @@ responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand
 }
 
 template <class in_connection_t, class out_connection_t>
-bind_result responder<in_connection_t, out_connection_t>::bind(const beam::duplex::common::identity& id)
+bind_result responder<in_connection_t, out_connection_t>::bind(const beam::duplex::common::endpoint_id& id)
 {
     if (is_bound())
     {
@@ -282,7 +282,7 @@ void responder<in_connection_t, out_connection_t>::unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::async_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback)
+void responder<in_connection_t, out_connection_t>::async_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback)
 {
     strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, id, callback));
 }
@@ -300,7 +300,7 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex::common::identity& id, std::function<void(out_connection_t&)> callback)
+void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback)
 {
     if (TURBO_UNLIKELY(!host_))
     {
@@ -335,7 +335,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
             {
                 case ENET_EVENT_TYPE_DISCONNECT:
                 {
-		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
 		    auto iter = peer_map_.find(id);
 		    if (iter != peer_map_.end())
 		    {
@@ -346,7 +346,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_CONNECT:
                 {
-		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
 		    auto iter = peer_map_.find(id);
 		    if (iter == peer_map_.end())
 		    {
@@ -358,7 +358,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_RECEIVE:
                 {
-		    bdc::identity id{event.peer->address.host, event.peer->address.port};
+		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
 		    auto iter = peer_map_.find(id);
 		    if (iter == peer_map_.end())
 		    {

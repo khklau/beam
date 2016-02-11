@@ -10,7 +10,7 @@ namespace common {
 
 typedef uint16_t port;
 
-struct identity
+struct endpoint_id
 {
     beam::internet::ipv4::address address;
     beam::duplex::common::port port;
@@ -23,9 +23,9 @@ struct identity
 namespace std {
 
 template<>
-struct hash<beam::duplex::common::identity>
+struct hash<beam::duplex::common::endpoint_id>
 {
-    std::size_t operator()(beam::duplex::common::identity value) const
+    std::size_t operator()(beam::duplex::common::endpoint_id value) const
     {
 	uint64_t tmp = value.address;
 	tmp = (tmp << 32) + value.port;
