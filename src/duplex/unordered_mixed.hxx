@@ -97,8 +97,9 @@ void out_connection<unreliable_msg_t, reliable_msg_t>::send(kj::ArrayPtr<const k
     }
 }
 
-perf_params::perf_params(std::size_t max, std::size_t download, std::size_t upload) :
+perf_params::perf_params(std::size_t max, std::chrono::milliseconds timeout, std::size_t download, std::size_t upload) :
 	max_connections(max),
+	connection_timeout(timeout),
 	download_bytes_per_sec(download),
 	upload_bytes_per_sec(upload)
 { }
@@ -126,7 +127,7 @@ initiator<in_connection_t, out_connection_t>::initiator(asio::io_service::strand
 }
 
 template <class in_connection_t, class out_connection_t>
-connection_result initiator<in_connection_t, out_connection_t>::connect(std::vector<bii4::address>&& receive_candidates, bdc::port port, std::chrono::milliseconds timeout)
+connection_result initiator<in_connection_t, out_connection_t>::connect(std::vector<bii4::address>&& receive_candidates, bdc::port port)
 {
     if (out_)
     {
@@ -141,7 +142,7 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
         if (peer != nullptr)
         {
             ENetEvent event;
-            if (enet_host_service(host_.get(), &event, timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
+            if (enet_host_service(host_.get(), &event, params_.connection_timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
             {
                 peer_.reset(peer, [](ENetPeer* peer)
 		{

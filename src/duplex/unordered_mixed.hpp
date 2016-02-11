@@ -69,8 +69,9 @@ private:
 
 struct perf_params
 {
-    perf_params(std::size_t max, std::size_t download = 0, std::size_t upload = 0);
+    perf_params(std::size_t max, std::chrono::milliseconds timeout = std::chrono::milliseconds(15000), std::size_t download = 0, std::size_t upload = 0);
     std::size_t max_connections;
+    std::chrono::milliseconds connection_timeout;
     std::size_t download_bytes_per_sec;
     std::size_t upload_bytes_per_sec;
 };
@@ -90,7 +91,7 @@ public:
     typedef out_connection_t out_connection_type;
     initiator(asio::io_service::strand& strand, perf_params&& params);
     inline bool is_connected() const { return peer_; }
-    connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::duplex::common::port port, std::chrono::milliseconds timeout);
+    connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::duplex::common::port port);
     void async_send(std::function<void(out_connection_t&)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
