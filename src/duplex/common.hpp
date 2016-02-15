@@ -16,6 +16,11 @@ struct endpoint_id
     beam::duplex::common::port port;
 };
 
+bool operator==(const endpoint_id& lhs, const endpoint_id& rhs)
+{
+    return lhs.address == rhs.address && lhs.port == rhs.port;
+}
+
 } // namespace common
 } // namespace duplex
 } // namespace beam
