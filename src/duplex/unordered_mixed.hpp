@@ -25,7 +25,7 @@ namespace channel_id
     };
 }
 
-class key;
+struct key;
 
 template <class unreliable_msg_t, class reliable_msg_t>
 class in_connection
@@ -90,8 +90,9 @@ public:
     typedef in_connection_t in_connection_type;
     typedef out_connection_t out_connection_type;
     initiator(asio::io_service::strand& strand, perf_params&& params);
-    inline bool is_connected() const { return peer_; }
+    inline bool is_connected() const { return peer_.get() != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::duplex::common::port port);
+    void disconnect();
     void async_send(std::function<void(out_connection_t&)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
@@ -121,7 +122,7 @@ public:
     typedef in_connection_t in_connection_type;
     typedef out_connection_t out_connection_type;
     responder(asio::io_service::strand& strand, perf_params&& params);
-    inline bool is_bound() const { return host_; }
+    inline bool is_bound() const { return host_.get() != nullptr; }
     inline bool has_connections() const { return !peer_map_.empty(); }
     bind_result bind(const beam::duplex::common::endpoint_id& id);
     void unbind();

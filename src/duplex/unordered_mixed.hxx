@@ -13,7 +13,7 @@ namespace bdc = beam::duplex::common;
 namespace bii4 = beam::internet::ipv4;
 namespace bme = beam::message;
 
-class key
+struct key
 {
     template <class in_connection_t, class out_connection_t>
     explicit key(const initiator<in_connection_t, out_connection_t>&)
@@ -108,21 +108,18 @@ template <class in_connection_t, class out_connection_t>
 initiator<in_connection_t, out_connection_t>::initiator(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
 	params_(std::move(params)),
-	host_(),
-	peer_(),
+	host_(nullptr, [](ENetHost* host) { enet_host_destroy(host); }),
+	peer_(nullptr, [](ENetPeer* peer) { enet_peer_reset(peer); }),
 	out_()
 {
     ENetHost* host = enet_host_create(nullptr, params.max_connections, 2, params.download_bytes_per_sec, params.upload_bytes_per_sec);
-    if (TURBO_UNLIKELY(host_ == nullptr))
+    if (TURBO_UNLIKELY(host == nullptr))
     {
 	throw std::runtime_error("Transport layer endpoint initialisation failed");
     }
     else
     {
-	host_.reset(host, [](ENetHost* host)
-	{
-	    enet_host_destroy(host);
-	});
+	host_.reset(host);
     }
 }
 
@@ -144,10 +141,7 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
             ENetEvent event;
             if (enet_host_service(host_.get(), &event, params_.connection_timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
             {
-                peer_.reset(peer, [](ENetPeer* peer)
-		{
-		    enet_peer_reset(peer);
-		});
+                peer_.reset(peer);
                 out_.reset(new out_connection_t(key(*this), strand_, *host_, *peer_));
                 return connection_result::success;
             }
@@ -158,6 +152,13 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
         }
     }
     return connection_result::failure;
+}
+
+template <class in_connection_t, class out_connection_t>
+void initiator<in_connection_t, out_connection_t>::disconnect()
+{
+    out_.reset();
+    peer_.reset();
 }
 
 template <class in_connection_t, class out_connection_t>
@@ -198,7 +199,7 @@ void initiator<in_connection_t, out_connection_t>::exec_receive(const typename i
     {
         do
         {
-	    in_connection_t in(strand_, *host_, *(event.peer));
+	    in_connection_t in(key(*this), strand_, *host_, *(event.peer));
             switch (event.type)
             {
                 case ENET_EVENT_TYPE_DISCONNECT:
@@ -246,7 +247,7 @@ template <class in_connection_t, class out_connection_t>
 responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
 	params_(std::move(params)),
-	host_(nullptr),
+	host_(nullptr, [](ENetHost* host) { enet_host_destroy(host); }),
 	peer_map_()
 {
     peer_map_.reserve(params.max_connections);
@@ -267,10 +268,7 @@ bind_result responder<in_connection_t, out_connection_t>::bind(const beam::duple
     }
     else
     {
-	host_.reset(host, [](ENetHost* host)
-	{
-	    enet_host_destroy(host);
-	});
+	host_.reset(host);
 	return bind_result::success;
     }
 }
@@ -309,7 +307,7 @@ void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex:
     auto iter = peer_map_.find(id);
     if (iter != peer_map_.end())
     {
-	out_connection_t out(strand_, *host_, iter->second);
+	out_connection_t out(key(*this), strand_, *host_, iter->second);
 	callback(out);
     }
 }
@@ -339,19 +337,19 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
 		    auto iter = peer_map_.find(id);
 		    if (iter != peer_map_.end())
 		    {
-			in_connection_t in(strand_, *host_, iter->second);
+			in_connection_t in(key(*this), strand_, *host_, *(iter->second));
 			handlers.on_disconnect(in);
 		    }
                     break;
                 }
                 case ENET_EVENT_TYPE_CONNECT:
                 {
-		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
+		    bdc::endpoint_id&& id{event.peer->address.host, event.peer->address.port};
 		    auto iter = peer_map_.find(id);
 		    if (iter == peer_map_.end())
 		    {
-			peer_map_.emplace(*host_, event.peer);
-			in_connection_t in(strand_, *host_, event.peer);
+			peer_map_.emplace(std::move(id), event.peer);
+			in_connection_t in(key(*this), strand_, *host_, *(event.peer));
 			handlers.on_connect(in);
 		    }
                     break;
@@ -364,7 +362,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
 		    {
 			break;
 		    }
-		    in_connection_t in(strand_, *host_, iter->second);
+		    in_connection_t in(key(*this), strand_, *host_, *(iter->second));
                     kj::ArrayPtr<capnp::word> tmp(
                             reinterpret_cast<capnp::word*>(event.packet->data),
                             event.packet->dataLength / sizeof(capnp::word));
