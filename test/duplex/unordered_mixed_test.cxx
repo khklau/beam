@@ -21,16 +21,16 @@ namespace {
 
 static const uint32_t localhost = 16777343U;
 
-/*
 class initiator_slave
 {
 public:
-    typedef bdu::initiator<bdu::UnreliableMsg, bdu::ReliableMsg> initiator_type;
-    initiator_slave(bii4::address address, bdc::port port, const initiator_type::perf_params& params);
+    typedef bdu::in_connection<bdu::UnreliableMsg, bdu::ReliableMsg> in_connection_type;
+    typedef bdu::out_connection<bdu::UnreliableMsg, bdu::ReliableMsg> out_connection_type;
+    typedef bdu::initiator<in_connection_type, out_connection_type> initiator_type;
+    initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params);
     ~initiator_slave();
     inline bool is_running() const { return thread_ != nullptr; }
-    inline bii4::address get_address() const { return address_; }
-    inline bdc::port get_port() const { return port_; }
+    inline const bdc::endpoint_id& get_endpoint_id() const { return id_; }
     void start();
     void stop();
     void send_unreliable(std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message);
@@ -38,43 +38,55 @@ public:
 private:
     typedef turbo::container::spsc_ring_queue<std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>> unreliable_queue_type;
     typedef turbo::container::spsc_ring_queue<std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>> reliable_queue_type;
+    initiator_slave() = delete;
     initiator_slave(const initiator_slave& other) = delete;
     initiator_slave& operator=(const initiator_slave& other) = delete;
     void run();
     void brake();
-    void on_send_unreliable();
-    void on_send_reliable();
+    void on_send_unreliable(out_connection_type& connection);
+    void on_send_reliable(out_connection_type& connection);
     void on_disconnect(const bii4::address&, const beam::duplex::common::port&);
-    bii4::address address_;
-    bdc::port port_;
+    bdc::endpoint_id id_;
     std::thread* thread_;
     asio::io_service service_;
     asio::io_service::strand strand_;
     initiator_type initiator_;
     unreliable_queue_type unreliable_queue_;
     reliable_queue_type reliable_queue_;
+    in_connection_type::event_handlers handlers_;
 };
 
-struct receiver_master
-{
-    typedef bdu::receiver<bdu::UnreliableMsg, bdu::ReliableMsg> receiver_type;
-    receiver_master(bdc::endpoint_id&& point, receiver_type::perf_params&& params);
-    ~receiver_master();
-    void bind(bdc::endpoint_id&& point);
-    asio::io_service service;
-    asio::io_service::strand strand;
-    receiver_type receiver;
-};
-
-initiator_slave::initiator_slave(bii4::address address, bdc::port port, const initiator_type::perf_params& params) :
-	address_(address),
-	port_(port),
+initiator_slave::initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params) :
+	id_(id),
 	thread_(nullptr),
 	service_(),
 	strand_(service_),
-	initiator_(strand_, {std::bind(&initiator_slave::on_disconnect, this, std::placeholders::_1, std::placeholders::_2)}, params),
+	initiator_(strand_, std::move(params)),
 	unreliable_queue_(128),
-	reliable_queue_(128)
+	reliable_queue_(128),
+	handlers_(
+	{
+	    [&](const in_connection_type::event_handlers&)
+	    {
+		initiator_.async_receive(handlers_);
+	    },
+	    [&](const in_connection_type&)
+	    {
+		initiator_.async_receive(handlers_);
+	    },
+	    [&](const in_connection_type&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](const in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	    {
+		initiator_.async_receive(handlers_);
+	    },
+	    [&](const in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	    {
+		initiator_.async_receive(handlers_);
+	    }
+	})
 { }
 
 initiator_slave::~initiator_slave()
@@ -108,18 +120,19 @@ void initiator_slave::stop()
 void initiator_slave::send_unreliable(std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message)
 {
     ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_queue_.get_producer().try_enqueue_move(std::move(message))) << "Unreliable message enqueue failed";
-    service_.post(std::bind(&initiator_slave::on_send_unreliable, this));
+    initiator_.async_send(std::bind(&initiator_slave::on_send_unreliable, this, std::placeholders::_1));
 }
 
 void initiator_slave::send_reliable(std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message)
 {
     ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_queue_.get_producer().try_enqueue_move(std::move(message))) << "Reliable message enqueue failed";
-    service_.post(std::bind(&initiator_slave::on_send_reliable, this));
+    initiator_.async_send(std::bind(&initiator_slave::on_send_reliable, this, std::placeholders::_1));
 }
 
 void initiator_slave::run()
 {
-    ASSERT_EQ(initiator_type::connection_result::success, initiator_.connect({address_}, port_)) << "Connection failed";
+    ASSERT_EQ(bdu::connection_result::success, initiator_.connect({id_.address}, id_.port)) << "Connection failed";
+    initiator_.async_receive(handlers_);
     service_.run();
 }
 
@@ -132,18 +145,18 @@ void initiator_slave::brake()
     service_.stop();
 }
 
-void initiator_slave::on_send_unreliable()
+void initiator_slave::on_send_unreliable(out_connection_type& connection)
 {
     std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message;
     ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_queue_.get_consumer().try_dequeue_move(message)) << "Unreliable message dequeue failed";
-    initiator_.send_unreliable(*message);
+    connection.send_unreliable(*message);
 }
 
-void initiator_slave::on_send_reliable()
+void initiator_slave::on_send_reliable(out_connection_type& connection)
 {
     std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message;
     ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_queue_.get_consumer().try_dequeue_move(message)) << "Reliable message dequeue failed";
-    initiator_.send_reliable(*message);
+    connection.send_reliable(*message);
 }
 
 void initiator_slave::on_disconnect(const bii4::address&, const beam::duplex::common::port&)
@@ -151,15 +164,28 @@ void initiator_slave::on_disconnect(const bii4::address&, const beam::duplex::co
     GTEST_FATAL_FAILURE_("Unexpected disconnect");
 }
 
-receiver_master::receiver_master(bdc::endpoint_id&& point, receiver_type::perf_params&& params) :
+struct responder_master
+{
+    typedef bdu::in_connection<bdu::UnreliableMsg, bdu::ReliableMsg> in_connection_type;
+    typedef bdu::out_connection<bdu::UnreliableMsg, bdu::ReliableMsg> out_connection_type;
+    typedef bdu::responder<in_connection_type, out_connection_type> responder_type;
+    responder_master(bdc::endpoint_id&& point, bdu::perf_params&& params);
+    ~responder_master();
+    void bind(bdc::endpoint_id&& point);
+    asio::io_service service;
+    asio::io_service::strand strand;
+    responder_type responder;
+};
+
+responder_master::responder_master(bdc::endpoint_id&& point, bdu::perf_params&& params) :
 	service(),
 	strand(service),
-	receiver(strand, std::move(params))
+	responder(strand, std::move(params))
 {
     bind(std::move(point));
 }
 
-receiver_master::~receiver_master()
+responder_master::~responder_master()
 {
     if (!service.stopped())
     {
@@ -167,37 +193,36 @@ receiver_master::~receiver_master()
     }
 }
 
-void receiver_master::bind(bdc::endpoint_id&& point)
+void responder_master::bind(bdc::endpoint_id&& point)
 {
-    ASSERT_EQ(receiver_type::bind_result::success, receiver.bind(point)) << "Bind failed";
+    ASSERT_EQ(bdu::bind_result::success, responder.bind(point)) << "Bind failed";
 }
 
-void setupConnection(::receiver_master& master, ::initiator_slave& slave)
+void setupConnection(::responder_master& master, ::initiator_slave& slave)
 {
     std::size_t connection_count = 0;
     while (connection_count == 0)
     {
-	master.receiver.async_receive(
+	master.responder.async_receive(
 	{
-	    [&](const ::receiver_master::receiver_type::event_handlers& current)
+	    [&](const ::responder_master::in_connection_type::event_handlers& current)
 	    {
 		slave.start();
-		master.receiver.async_receive(current);
+		master.responder.async_receive(current);
 	    },
-	    [&](const bii4::address& address, const beam::duplex::common::port&)
+	    [&](const ::responder_master::in_connection_type&)
 	    {
-		ASSERT_EQ(slave.get_address(), address) << "Connection on unexpected address";
 		++connection_count;
 	    },
-	    [&](const bii4::address&, const beam::duplex::common::port&)
+	    [&](const ::responder_master::in_connection_type&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -207,14 +232,88 @@ void setupConnection(::receiver_master& master, ::initiator_slave& slave)
     master.service.reset();
 }
 
-*/
-
 } // anonymous namespace
 
 TEST(unordered_mixed_test, basic_unreliable)
 {
+    ::responder_master master({0U, 8888U}, {24U});
+    ::initiator_slave slave({::localhost, 8888U}, {24U});
+    setupConnection(master, slave);
+    std::size_t unreliable_count = 0;
+    while (unreliable_count == 0)
+    {
+	master.responder.async_receive(
+	{
+	    [&](const ::responder_master::in_connection_type::event_handlers& current)
+	    {
+		std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message(new bme::capnproto<bdu::UnreliableMsg>());
+		bdu::UnreliableMsg::Builder builder = message->get_builder();
+		builder.setValue(123U);
+		slave.send_unreliable(std::move(message));
+		master.responder.async_receive(current);
+	    },
+	    [&](const ::responder_master::in_connection_type&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const ::responder_master::in_connection_type&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message)
+	    {
+		ASSERT_EQ(123U, message->get_reader().getValue()) << "Incorrect message value";
+		++unreliable_count;
+	    },
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	    }
+	});
+	master.service.run();
+    };
+    slave.stop();
 }
 
 TEST(unordered_mixed_test, basic_reliable)
 {
+    ::responder_master master({0U, 8888U}, {24U});
+    ::initiator_slave slave({::localhost, 8888U}, {24U});
+    setupConnection(master, slave);
+    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message(new bme::capnproto<bdu::ReliableMsg>());
+    bdu::ReliableMsg::Builder builder = message->get_builder();
+    builder.setValue("foo");
+    slave.send_reliable(std::move(message));
+    std::size_t reliable_count = 0;
+    while (reliable_count == 0)
+    {
+	master.responder.async_receive(
+	{
+	    [&](const ::responder_master::in_connection_type::event_handlers& current)
+	    {
+		master.responder.async_receive(current);
+	    },
+	    [&](const ::responder_master::in_connection_type&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected connect");
+	    },
+	    [&](const ::responder_master::in_connection_type&)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	    },
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	    {
+		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	    },
+	    [&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message)
+	    {
+		ASSERT_STREQ("foo", message->get_reader().getValue().cStr()) << "Incorrect message value";
+		++reliable_count;
+	    }
+	});
+	master.service.run();
+	master.service.reset();
+    };
+    slave.stop();
+
 }
