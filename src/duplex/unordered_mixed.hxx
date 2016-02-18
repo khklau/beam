@@ -307,7 +307,7 @@ void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex:
     auto iter = peer_map_.find(id);
     if (iter != peer_map_.end())
     {
-	out_connection_t out(key(*this), strand_, *host_, iter->second);
+	out_connection_t out(key(*this), strand_, *host_, *(iter->second));
 	callback(out);
     }
 }
