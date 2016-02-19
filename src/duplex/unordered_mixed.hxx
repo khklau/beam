@@ -298,7 +298,7 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::exec_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback)
+void responder<in_connection_t, out_connection_t>::exec_send(beam::duplex::common::endpoint_id id, std::function<void(out_connection_t&)> callback)
 {
     if (TURBO_UNLIKELY(!host_))
     {

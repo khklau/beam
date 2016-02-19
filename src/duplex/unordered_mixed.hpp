@@ -133,7 +133,7 @@ private:
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
     void exec_unbind();
-    void exec_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback);
+    void exec_send(beam::duplex::common::endpoint_id id, std::function<void(out_connection_t&)> callback);
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
