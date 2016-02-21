@@ -514,6 +514,64 @@ TEST(unordered_mixed_test, basic_responded_reliable)
     slave.stop();
 }
 
+TEST(unordered_mixed_test, basic_responded_mixed)
+{
+    ::responder_master master({0U, 8888U}, {24U});
+    ::initiator_slave slave({::localhost, 8888U}, {24U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message1(new bme::capnproto<bdu::ReliableMsg>());
+    bdu::ReliableMsg::Builder builder1 = message1->get_builder();
+    builder1.setValue("abcxyz");
+    master.send_reliable(*iter, std::move(message1));
+    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message2(new bme::capnproto<bdu::UnreliableMsg>());
+    bdu::UnreliableMsg::Builder builder2 = message2->get_builder();
+    builder2.setValue(123U);
+    master.send_unreliable(*iter, std::move(message2));
+    unsigned int unreliable_count = 0U;
+    unsigned int reliable_count = 0U;
+    master.responder.async_receive(
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> received1;
+	    if (slave.try_receive_unreliable(received1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
+	    {
+		ASSERT_EQ(123U, received1->get_reader().getValue()) << "Incorrect unreliable message value";
+		++unreliable_count;
+	    }
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> received2;
+	    if (slave.try_receive_reliable(received2) == ::initiator_slave::reliable_queue_type::consumer::result::success)
+	    {
+		ASSERT_STREQ("abcxyz", received2->get_reader().getValue().cStr()) << "Incorrect reliable message value";
+		++reliable_count;
+	    }
+	    if (unreliable_count == 0U || reliable_count == 0U)
+	    {
+		master.responder.async_receive(current);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	}
+    });
+    master.service.run();
+    slave.stop();
+}
+
 namespace {
 
 struct initiator_master
