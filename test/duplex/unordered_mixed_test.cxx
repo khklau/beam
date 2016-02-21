@@ -429,11 +429,11 @@ TEST(unordered_mixed_test, basic_responded_unreliable)
     ::responder_master master({0U, 8888U}, {24U});
     ::initiator_slave slave({::localhost, 8888U}, {24U});
     setupConnection(master, slave);
-	    auto iter = master.known_endpoints.begin();
-	    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message(new bme::capnproto<bdu::UnreliableMsg>());
-	    bdu::UnreliableMsg::Builder builder = message->get_builder();
-	    builder.setValue(123U);
-	    master.send_unreliable(*iter, std::move(message));
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message(new bme::capnproto<bdu::UnreliableMsg>());
+    bdu::UnreliableMsg::Builder builder = message->get_builder();
+    builder.setValue(123U);
+    master.send_unreliable(*iter, std::move(message));
     master.responder.async_receive(
     {
 	[&](const ::responder_master::in_connection_type::event_handlers& current)
@@ -442,6 +442,51 @@ TEST(unordered_mixed_test, basic_responded_unreliable)
 	    if (slave.try_receive_unreliable(received) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
 		ASSERT_EQ(123U, received->get_reader().getValue()) << "Incorrect unreliable message value";
+	    }
+	    else
+	    {
+		master.responder.async_receive(current);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	}
+    });
+    master.service.run();
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, basic_responded_reliable)
+{
+    ::responder_master master({0U, 8888U}, {24U});
+    ::initiator_slave slave({::localhost, 8888U}, {24U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message(new bme::capnproto<bdu::ReliableMsg>());
+    bdu::ReliableMsg::Builder builder = message->get_builder();
+    builder.setValue("abcxyz");
+    master.send_reliable(*iter, std::move(message));
+    master.responder.async_receive(
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> received;
+	    if (slave.try_receive_reliable(received) == ::initiator_slave::reliable_queue_type::consumer::result::success)
+	    {
+		ASSERT_STREQ("abcxyz", received->get_reader().getValue().cStr()) << "Incorrect reliable message value";
 	    }
 	    else
 	    {
