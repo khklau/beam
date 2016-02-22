@@ -750,6 +750,54 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
     slave.stop();
 }
 
+TEST(unordered_mixed_test, request_reply_responded_unreliable)
+{
+    ::responder_master master({0U, 19101U}, {24U});
+    ::initiator_slave slave({::localhost, 19101U}, {24U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message(new bme::capnproto<bdu::UnreliableMsg>());
+    bdu::UnreliableMsg::Builder builder = message->get_builder();
+    builder.setValue(789U);
+    master.send_unreliable(*iter, std::move(message));
+    master.responder.async_receive(
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> request;
+	    if (slave.try_receive_unreliable(request) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
+	    {
+		std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> reply(new bme::capnproto<bdu::UnreliableMsg>());
+		bdu::UnreliableMsg::Builder builder = reply->get_builder();
+		builder.setValue(request->get_reader().getValue() + 10U);
+		slave.send_unreliable(std::move(reply));
+	    }
+	    else
+	    {
+		master.responder.async_receive(current);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> reply)
+	{
+	    ASSERT_EQ(799U, reply->get_reader().getValue()) << "Incorrect unreliable message value";
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	}
+    });
+    master.service.run();
+    slave.stop();
+}
+
 namespace {
 
 struct initiator_master
