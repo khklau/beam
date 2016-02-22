@@ -772,10 +772,7 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 		builder.setValue(request->get_reader().getValue() + 10U);
 		slave.send_unreliable(std::move(reply));
 	    }
-	    else
-	    {
-		master.responder.async_receive(current);
-	    }
+	    master.responder.async_receive(current);
 	},
 	[&](const ::responder_master::in_connection_type&)
 	{
@@ -792,6 +789,52 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>>)
 	{
 	    GTEST_FATAL_FAILURE_("Unexpected reliable message");
+	}
+    });
+    master.service.run();
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, request_reply_responded_reliable)
+{
+    ::responder_master master({0U, 19101U}, {24U});
+    ::initiator_slave slave({::localhost, 19101U}, {24U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message(new bme::capnproto<bdu::ReliableMsg>());
+    bdu::ReliableMsg::Builder builder = message->get_builder();
+    builder.setValue("compute");
+    master.send_reliable(*iter, std::move(message));
+    master.responder.async_receive(
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> request;
+	    if (slave.try_receive_reliable(request) == ::initiator_slave::reliable_queue_type::consumer::result::success)
+	    {
+		std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> reply(new bme::capnproto<bdu::ReliableMsg>());
+		bdu::ReliableMsg::Builder builder = reply->get_builder();
+		std::string tmp("pre-");
+		builder.setValue(tmp.append(request->get_reader().getValue()).c_str());
+		slave.send_reliable(std::move(reply));
+	    }
+	    master.responder.async_receive(current);
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> reply)
+	{
+	    ASSERT_STREQ("pre-compute", reply->get_reader().getValue().cStr()) << "Incorrect reliable message value";
 	}
     });
     master.service.run();
