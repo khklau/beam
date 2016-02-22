@@ -797,8 +797,8 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 
 TEST(unordered_mixed_test, request_reply_responded_reliable)
 {
-    ::responder_master master({0U, 19101U}, {24U});
-    ::initiator_slave slave({::localhost, 19101U}, {24U});
+    ::responder_master master({0U, 19102U}, {24U});
+    ::initiator_slave slave({::localhost, 19102U}, {24U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
     std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message(new bme::capnproto<bdu::ReliableMsg>());
@@ -837,6 +837,77 @@ TEST(unordered_mixed_test, request_reply_responded_reliable)
 	    ASSERT_STREQ("pre-compute", reply->get_reader().getValue().cStr()) << "Incorrect reliable message value";
 	}
     });
+    master.service.run();
+    slave.stop();
+}
+
+TEST(unordered_mixed_test, request_reply_responded_mixed)
+{
+    ::responder_master master({0U, 19103U}, {24U});
+    ::initiator_slave slave({::localhost, 19103U}, {24U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message1(new bme::capnproto<bdu::ReliableMsg>());
+    bdu::ReliableMsg::Builder builder1 = message1->get_builder();
+    builder1.setValue("compute");
+    master.send_reliable(*iter, std::move(message1));
+    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> message2(new bme::capnproto<bdu::UnreliableMsg>());
+    bdu::UnreliableMsg::Builder builder2 = message2->get_builder();
+    builder2.setValue(789U);
+    master.send_unreliable(*iter, std::move(message2));
+    std::size_t unreliable_count = 0U;
+    std::size_t reliable_count = 0U;
+    ::responder_master::in_connection_type::event_handlers handlers
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> request1;
+	    if (slave.try_receive_unreliable(request1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
+	    {
+		std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> reply(new bme::capnproto<bdu::UnreliableMsg>());
+		bdu::UnreliableMsg::Builder builder = reply->get_builder();
+		builder.setValue(request1->get_reader().getValue() + 10U);
+		slave.send_unreliable(std::move(reply));
+	    }
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> request2;
+	    if (slave.try_receive_reliable(request2) == ::initiator_slave::reliable_queue_type::consumer::result::success)
+	    {
+		std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> reply(new bme::capnproto<bdu::ReliableMsg>());
+		bdu::ReliableMsg::Builder builder = reply->get_builder();
+		std::string tmp("pre-");
+		builder.setValue(tmp.append(request2->get_reader().getValue()).c_str());
+		slave.send_reliable(std::move(reply));
+	    }
+	    master.responder.async_receive(current);
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>> reply)
+	{
+	    ASSERT_EQ(799U, reply->get_reader().getValue()) << "Incorrect unreliable message value";
+	    ++unreliable_count;
+	    if (unreliable_count == 0U || reliable_count == 0U)
+	    {
+		master.responder.async_receive(handlers);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> reply)
+	{
+	    ASSERT_STREQ("pre-compute", reply->get_reader().getValue().cStr()) << "Incorrect reliable message value";
+	    ++reliable_count;
+	    if (unreliable_count == 0U || reliable_count == 0U)
+	    {
+		master.responder.async_receive(handlers);
+	    }
+	}
+    };
+    master.responder.async_receive(handlers);
     master.service.run();
     slave.stop();
 }
