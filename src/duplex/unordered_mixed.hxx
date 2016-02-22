@@ -3,6 +3,8 @@
 
 #include <beam/duplex/unordered_mixed.hpp>
 #include <stdexcept>
+#include <beam/message/capnproto.hxx>
+#include <capnp/serialize.h>
 #include <turbo/toolset/extension.hpp>
 
 namespace beam {
@@ -80,7 +82,7 @@ void out_connection<unreliable_msg_t, reliable_msg_t>::send_reliable(beam::messa
 template <class unreliable_msg_t, class reliable_msg_t>
 void out_connection<unreliable_msg_t, reliable_msg_t>::send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel)
 {
-    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(messageToFlatArray(message)));
+    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(capnp::messageToFlatArray(message)));
     ENetPacket* packet = enet_packet_create(
             array->begin(),
             array->size() *  sizeof(capnp::word),
