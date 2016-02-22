@@ -622,6 +622,57 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
     slave.stop();
 }
 
+TEST(unordered_mixed_test, request_reply_initiated_reliable)
+{
+    ::responder_master master({0U, 19001U}, {24U});
+    ::initiator_slave slave({::localhost, 19001U}, {24U});
+    setupConnection(master, slave);
+    ::responder_master::in_connection_type::event_handlers handlers
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers&)
+	{
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> received1;
+	    if (slave.try_receive_reliable(received1) == ::initiator_slave::reliable_queue_type::consumer::result::success)
+	    {
+		ASSERT_STREQ("testing", received1->get_reader().getValue().cStr()) << "Incorrect reliable message reply value";
+	    }
+	    else
+	    {
+		std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> message(new bme::capnproto<bdu::ReliableMsg>());
+		bdu::ReliableMsg::Builder builder = message->get_builder();
+		builder.setValue("test");
+		slave.send_reliable(std::move(message));
+		master.responder.async_receive(handlers);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::UnreliableMsg>>)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected unreliable message");
+	},
+	[&](const ::responder_master::in_connection_type&, std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> request)
+	{
+	    auto iter = master.known_endpoints.begin();
+	    std::unique_ptr<bme::capnproto<bdu::ReliableMsg>> reply(new bme::capnproto<bdu::ReliableMsg>());
+	    bdu::ReliableMsg::Builder builder = reply->get_builder();
+	    std::string tmp(request->get_reader().getValue());
+	    builder.setValue(tmp.append("ing").c_str());
+	    master.send_reliable(*iter, std::move(reply));
+	    master.responder.async_receive(handlers);
+	}
+    };
+    master.responder.async_receive(handlers);
+    master.service.run();
+    slave.stop();
+}
+
 namespace {
 
 struct initiator_master
