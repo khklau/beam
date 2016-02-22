@@ -47,7 +47,7 @@ def build(buildCtx):
 	    includes=['.'] + buildCtx.env.component.include_path_list,
 	    cxxflags=buildCtx.env.CXXFLAGS,
 	    linkflags=buildCtx.env.LDFLAGS,
-	    use=['GTEST', 'CAPNPROTO_SHLIB', 'ENET_SHLIB', 'ASIO_SHLIB', 'shlib_beam_internet'],
+	    use=['GTEST', 'CAPNPROTO_SHLIB', 'ENET_SHLIB', 'ASIO_SHLIB', 'shlib_beam_internet', 'shlib_beam_duplex'],
 	    libpath=['.'] + buildCtx.env.component.lib_path_list,
 	    rpath=buildCtx.env.component.rpath_list,
 	    install_path=None,
