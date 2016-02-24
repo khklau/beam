@@ -4,6 +4,7 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <tuple>
 #include <unordered_map>
 #include <asio/strand.hpp>
 #include <beam/duplex/common.hpp>
@@ -44,6 +45,7 @@ public:
     in_connection(const key&, asio::io_service::strand& strand, ENetHost& host, ENetPeer& peer);
     beam::duplex::common::endpoint_id get_endpoint_id() const;
 private:
+    in_connection() = delete;
     asio::io_service::strand& strand_;
     ENetHost& host_;
     ENetPeer& peer_;
@@ -59,6 +61,7 @@ public:
     void send_unreliable(beam::message::capnproto<unreliable_msg_t>& message);
     void send_reliable(beam::message::capnproto<reliable_msg_t>& message);
 private:
+    out_connection() = delete;
     static uint32_t get_packet_flags(channel_id::type channel);
     static void free_message(ENetPacket* packet);
     void send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel);
@@ -106,6 +109,7 @@ private:
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unique_ptr<ENetPeer, std::function<void(ENetPeer*)>> peer_;
     std::unique_ptr<out_connection_t> out_;
+    // TODO add a peer_map
 };
 
 enum class bind_result
@@ -126,19 +130,19 @@ public:
     inline bool has_connections() const { return !peer_map_.empty(); }
     bind_result bind(const beam::duplex::common::endpoint_id& id);
     void unbind();
-    void async_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback);
+    void async_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
     responder() = delete;
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
     void exec_unbind();
-    void exec_send(beam::duplex::common::endpoint_id id, std::function<void(out_connection_t&)> callback);
+    void exec_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback);
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
-    std::unordered_map<beam::duplex::common::endpoint_id, ENetPeer*> peer_map_;
+    std::unordered_map<beam::duplex::common::endpoint_id, std::tuple<in_connection_t, out_connection_t>> peer_map_;
 };
 
 } // namespace unordered_mixed

@@ -282,9 +282,9 @@ void responder<in_connection_t, out_connection_t>::unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::async_send(const beam::duplex::common::endpoint_id& id, std::function<void(out_connection_t&)> callback)
+void responder<in_connection_t, out_connection_t>::async_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback)
 {
-    strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, id, callback));
+    strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, callback));
 }
 
 template <class in_connection_t, class out_connection_t>
@@ -300,18 +300,24 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::exec_send(beam::duplex::common::endpoint_id id, std::function<void(out_connection_t&)> callback)
+void responder<in_connection_t, out_connection_t>::exec_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback)
 {
     if (TURBO_UNLIKELY(!host_))
     {
 	return;
     }
-    auto iter = peer_map_.find(id);
-    if (iter != peer_map_.end())
+    callback([&](const beam::duplex::common::endpoint_id& endpoint)
     {
-	out_connection_t out(key(*this), strand_, *host_, *(iter->second));
-	callback(out);
-    }
+	auto iter = peer_map_.find(endpoint);
+	if (iter != peer_map_.end())
+	{
+	    return &(std::get<1>(iter->second));
+	}
+	else
+	{
+	    return static_cast<out_connection_t*>(nullptr);
+	}
+    });
 }
 
 template <class in_connection_t, class out_connection_t>
@@ -339,21 +345,18 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
 		    auto iter = peer_map_.find(id);
 		    if (iter != peer_map_.end())
 		    {
-			in_connection_t in(key(*this), strand_, *host_, *(iter->second));
-			handlers.on_disconnect(in);
+			handlers.on_disconnect(std::get<0>(iter->second));
+			peer_map_.erase(iter);
 		    }
                     break;
                 }
                 case ENET_EVENT_TYPE_CONNECT:
                 {
 		    bdc::endpoint_id&& id{event.peer->address.host, event.peer->address.port};
-		    auto iter = peer_map_.find(id);
-		    if (iter == peer_map_.end())
-		    {
-			peer_map_.emplace(std::move(id), event.peer);
-			in_connection_t in(key(*this), strand_, *host_, *(event.peer));
-			handlers.on_connect(in);
-		    }
+		    auto result = peer_map_.emplace(std::move(id), std::make_tuple(
+			    in_connection_t(key(*this), strand_, *host_, *(event.peer)),
+			    out_connection_t(key(*this), strand_, *host_, *(event.peer))));
+		    handlers.on_connect(std::get<0>(result.first->second));
                     break;
                 }
                 case ENET_EVENT_TYPE_RECEIVE:
@@ -364,7 +367,6 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
 		    {
 			break;
 		    }
-		    in_connection_t in(key(*this), strand_, *host_, *(iter->second));
                     kj::ArrayPtr<capnp::word> tmp(
                             reinterpret_cast<capnp::word*>(event.packet->data),
                             event.packet->dataLength / sizeof(capnp::word));
@@ -372,13 +374,13 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                     {
                         std::unique_ptr<bme::capnproto<typename in_connection_t::unreliable_msg_type>> message(
 				new bme::capnproto<typename in_connection_t::unreliable_msg_type>(tmp));
-                        handlers.on_receive_unreliable_msg(in, std::move(message));
+                        handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(message));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
                         std::unique_ptr<bme::capnproto<typename in_connection_t::reliable_msg_type>> message(
 				new bme::capnproto<typename in_connection_t::reliable_msg_type>(tmp));
-                        handlers.on_receive_reliable_msg(in, std::move(message));
+                        handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(message));
                     }
                     enet_packet_destroy(event.packet);
                     break;
