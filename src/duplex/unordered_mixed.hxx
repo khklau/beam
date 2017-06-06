@@ -178,7 +178,7 @@ void initiator<in_connection_t, out_connection_t>::async_receive(const typename 
 template <class in_connection_t, class out_connection_t>
 void initiator<in_connection_t, out_connection_t>::exec_send(std::function<void(out_connection_t&)> callback)
 {
-    if (TURBO_LIKELY(out_))
+    if (TURBO_LIKELY(out_.get() != nullptr))
     {
 	callback(*out_);
     }
