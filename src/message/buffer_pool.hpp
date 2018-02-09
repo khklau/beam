@@ -5,15 +5,12 @@
 #include <functional>
 #include <tuple>
 #include <vector>
-#include <capnp/common.h>
-#include <kj/array.h>
+#include <beam/message/buffer.hpp>
 #include <turbo/container/mpmc_ring_queue.hpp>
 #include <turbo/toolset/attribute.hpp>
 
 namespace beam {
 namespace message {
-
-typedef kj::Array<capnp::word> buffer;
 
 typedef std::unique_ptr<buffer, std::function<void (buffer*)>> unique_pool_ptr;
 

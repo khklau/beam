@@ -2,6 +2,7 @@ import os
 from waflib.extras.layout import Product, Component
 
 publicHeaders = [
+    'buffer.hpp',
     'buffer_pool.hpp',
     'capnproto.hpp',
     'capnproto.hxx']
