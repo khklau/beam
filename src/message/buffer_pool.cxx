@@ -21,18 +21,16 @@ buffer_pool::buffer_pool(std::size_t message_size, capacity_type capacity)
     }
 }
 
-unique_pool_ptr buffer_pool::borrow()
+buffer_pool::capacity_type buffer_pool::reserve()
 {
     namespace tar = turbo::algorithm::recovery;
     capacity_type reservation = 0U;
-    unique_pool_ptr result(nullptr, std::bind(&buffer_pool::release, this, std::placeholders::_1));
     tar::retry_with_random_backoff([&] () -> tar::try_state
     {
 	switch (free_list_.try_dequeue_copy(reservation))
 	{
 	    case free_list_type::consumer::result::success:
 	    {
-		result.reset(&(pool_[reservation]));
 		return tar::try_state::done;
 	    }
 	    default:
@@ -41,16 +39,15 @@ unique_pool_ptr buffer_pool::borrow()
 	    }
 	}
     });
-    return std::move(result);
+    return reservation;
 }
 
-void buffer_pool::release(buffer* ptr)
+void buffer_pool::revoke(capacity_type reservation)
 {
     namespace tar = turbo::algorithm::recovery;
-    capacity_type index = &(pool_[0]) - ptr;
     tar::retry_with_random_backoff([&] () -> tar::try_state
     {
-	switch (free_list_.try_enqueue_copy(index))
+	switch (free_list_.try_enqueue_copy(reservation))
 	{
 	    case free_list_type::producer::result::success:
 	    {
@@ -62,6 +59,21 @@ void buffer_pool::release(buffer* ptr)
 	    }
 	}
     });
+}
+
+unique_pool_ptr buffer_pool::borrow()
+{
+    capacity_type reservation = reserve();
+    unique_pool_ptr result(
+	    &(pool_[reservation]),
+	    std::bind(&buffer_pool::reinstate, this, std::placeholders::_1));
+    return std::move(result);
+}
+
+void buffer_pool::reinstate(buffer* ptr)
+{
+    capacity_type reservation = &(pool_[0]) - ptr;
+    revoke(reservation);
 }
 
 } // namespace message

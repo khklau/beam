@@ -19,6 +19,16 @@ class TURBO_SYMBOL_DECL buffer_pool
 public:
     typedef std::uint32_t capacity_type;
     buffer_pool(std::size_t message_size, capacity_type capacity);
+    inline const buffer& operator[](capacity_type reservation) const
+    {
+	return pool_[reservation];
+    }
+    inline buffer& operator[](capacity_type reservation)
+    {
+	return pool_[reservation];
+    }
+    capacity_type reserve();
+    void revoke(capacity_type reservation);
     unique_pool_ptr borrow();
 private:
     typedef turbo::container::mpmc_ring_queue<capacity_type> free_list_type;
@@ -27,7 +37,7 @@ private:
     buffer_pool(buffer_pool&&) = delete;
     buffer_pool& operator=(const buffer_pool&) = delete;
     buffer_pool& operator=(buffer_pool&&) = delete;
-    void release(buffer* ptr);
+    void reinstate(buffer* ptr);
     std::vector<buffer> pool_;
     free_list_type free_list_;
 };
