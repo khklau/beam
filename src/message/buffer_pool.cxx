@@ -16,7 +16,10 @@ buffer_pool::buffer_pool(std::size_t message_size, capacity_type capacity)
 {
     for (auto iter = pool_.begin(); iter != pool_.end(); ++iter)
     {
-	*iter = make_buffer(message_size);
+	if (message_size > 0U)
+	{
+	    *iter = make_buffer(message_size);
+	}
 	free_list_.try_enqueue_copy(pool_.begin() - iter);
     }
 }
