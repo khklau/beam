@@ -29,7 +29,9 @@ public:
     }
     capacity_type reserve();
     void revoke(capacity_type reservation);
+    unique_pool_ptr borrow(std::size_t required_size);
     unique_pool_ptr borrow();
+    unique_pool_ptr borrow_and_copy(kj::ArrayPtr<capnp::word> source);
 private:
     typedef turbo::container::mpmc_ring_queue<capacity_type> free_list_type;
     buffer_pool() = delete;
@@ -40,6 +42,7 @@ private:
     void reinstate(buffer* ptr);
     std::vector<buffer> pool_;
     free_list_type free_list_;
+    std::size_t default_msg_size_;
 };
 
 } // namespace message
