@@ -1,6 +1,7 @@
 #ifndef BEAM_MESSAGE_CAPNPROTO_HPP
 #define BEAM_MESSAGE_CAPNPROTO_HPP
 
+#include <utility>
 #include <beam/message/buffer.hpp>
 #include <capnp/common.h>
 #include <capnp/message.h>
@@ -16,45 +17,29 @@ class capnproto
 {
 public:
     typedef message_t message_type;
-    capnproto();
-    explicit capnproto(kj::InputStream& input);
-    explicit capnproto(kj::ArrayPtr<capnp::word> flat);
-    capnproto(const capnproto<message_t>&) = delete;
-    capnproto<message_t>& operator=(const capnproto<message_t>&) = delete;
-    typename message_t::Builder get_builder();
-    typename message_t::Reader get_reader();
-    kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> get_segments();
-private:
-    capnp::MallocMessageBuilder message_;
-};
-
-template <class message_t>
-class outbound
-{
-public:
-    typedef message_t message_type;
-    explicit outbound(buffer& storage);
-    inline typename message_type::Builder build()
-    {
-	return builder_.initRoot<message_type>();
-    }
-private:
-    outbound() = delete;
-    capnp::MallocMessageBuilder builder_;
-};
-
-template <class message_t>
-class inbound
-{
-public:
-    typedef message_t message_type;
-    inbound(buffer& storage, const kj::ArrayPtr<capnp::word> source);
+    explicit capnproto(unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
     }
+    inline typename message_type::Builder build()
+    {
+	return builder_.initRoot<message_type>();
+    }
+    ///
+    /// Despite its claim to not require serialisation Capn Proto does need to
+    /// serialise variable length segment information in front of the message.
+    /// The segments required will depend on the message body content.
+    /// This means the storage buffer passed to the constructor can't be used for
+    /// serialisation and a new buffer needs to be allocated to store
+    /// the segment info + body message.
+    ///
+    buffer serialise();
 private:
-    inbound() = delete;
+    capnproto() = delete;
+    capnproto(const capnproto&) = delete;
+    capnproto& operator=(const capnproto&) = delete;
+    unique_pool_ptr buffer_;
     capnp::MallocMessageBuilder builder_;
 };
 

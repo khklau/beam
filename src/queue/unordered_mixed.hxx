@@ -18,11 +18,11 @@ namespace bqc = beam::queue::common;
 
 template <class unreliable_msg_t, class reliable_msg_t>
 sender<unreliable_msg_t, reliable_msg_t>::sender::perf_params::perf_params(
-	std::size_t win, std::chrono::microseconds sleep,
+	std::size_t window, std::chrono::microseconds sleep,
 	std::chrono::milliseconds connection,
 	std::size_t in,
 	std::size_t out) :
-    window_size(win),
+    window_size(window),
     sleep_amount(sleep),
     connection_timeout(connection),
     in_bytes_per_sec(in),
@@ -35,6 +35,7 @@ sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service::strand& stran
 	timer_(strand_.get_io_service()),
 	handlers_(handlers),
 	params_(params),
+	pool_(0U, params_.window_size),
 	host_(nullptr),
 	peer_(nullptr)
 {
@@ -122,33 +123,34 @@ uint32_t sender<unreliable_msg_t, reliable_msg_t>::get_packet_flags(channel_id::
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
-	beam::message::capnproto<unreliable_msg_t>& message)
+	beam::message::buffer& message)
 {
-    return send(std::move(message.get_segments()), channel_id::unreliable);
+    return send(message, channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
-	beam::message::capnproto<reliable_msg_t>& message)
+	beam::message::buffer& message)
 {
-    return send(std::move(message.get_segments()), channel_id::reliable);
+    return send(message, channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send(
-	kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel)
+	beam::message::buffer& message, channel_id::type channel)
 {
     if (!is_connected())
     {
 	return send_result::not_connected;
     }
-    kj::Array<capnp::word>* array = new kj::Array<capnp::word>(std::move(messageToFlatArray(message)));
+    auto reservation = pool_.reserve();
+    pool_[reservation] = std::move(message);
     ENetPacket* packet = enet_packet_create(
-	    array->begin(),
-	    array->size() *  sizeof(capnp::word),
+	    pool_[reservation].begin(),
+	    pool_[reservation].size() *  sizeof(capnp::word),
 	    get_packet_flags(channel));
-    packet->userData = array;
-    packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::free_message;
+    packet->userData = static_cast<beam::message::buffer_pool*>(&pool_);
+    packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::return_message;
     if (enet_peer_send(peer_, channel, packet) == 0)
     {
 	enet_host_flush(host_);
@@ -204,15 +206,18 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void sender<unreliable_msg_t, reliable_msg_t>::free_message(ENetPacket* packet)
+void sender<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket* packet)
 {
-    delete reinterpret_cast<kj::Array<capnp::word>*>(packet->userData);
+    auto pool = static_cast<beam::message::buffer_pool*>(packet->userData);
+    beam::message::buffer_pool::capacity_type reservation = static_cast<beam::message::buffer*>(static_cast<void*>(packet->data)) - &((*pool)[0]);
+    pool->revoke(reservation);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 receiver<unreliable_msg_t, reliable_msg_t>::receiver(asio::io_service::strand& strand, perf_params&& params) :
 	strand_(strand),
 	params_(std::move(params)),
+	pool_(0, params_.window_size),
 	host_(nullptr)
 { }
 
@@ -300,18 +305,17 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		}
 		case ENET_EVENT_TYPE_RECEIVE:
 		{
-		    kj::ArrayPtr<capnp::word> tmp(
+		    kj::ArrayPtr<capnp::word> source(
 			    reinterpret_cast<capnp::word*>(event.packet->data),
 			    event.packet->dataLength / sizeof(capnp::word));
+		    bme::unique_pool_ptr buffer = std::move(pool_.borrow_and_copy(source));
 		    if (event.channelID == channel_id::unreliable)
 		    {
-			std::unique_ptr<bme::capnproto<unreliable_msg_t>> message(new bme::capnproto<unreliable_msg_t>(tmp));
-			handlers.on_receive_unreliable_msg(std::move(message));
+			handlers.on_receive_unreliable_msg(std::move(buffer));
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
-			std::unique_ptr<bme::capnproto<reliable_msg_t>> message(new bme::capnproto<reliable_msg_t>(tmp));
-			handlers.on_receive_reliable_msg(std::move(message));
+			handlers.on_receive_reliable_msg(std::move(buffer));
 		    }
 		    enet_packet_destroy(event.packet);
 		    break;

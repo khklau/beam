@@ -11,6 +11,7 @@
 #include <asio/strand.hpp>
 #include <asio/high_resolution_timer.hpp>
 #include <beam/internet/ipv4.hpp>
+#include <beam/message/buffer_pool.hpp>
 #include <beam/message/capnproto.hpp>
 #include <beam/queue/common.hpp>
 #include <capnp/common.h>
@@ -61,7 +62,8 @@ public:
     };
     struct perf_params
     {
-	perf_params(std::size_t win,
+	perf_params(
+		std::size_t window,
 		std::chrono::microseconds sleep = std::chrono::microseconds(0),
 		std::chrono::milliseconds connection = std::chrono::milliseconds(15000),
 		std::size_t in = 0,
@@ -77,8 +79,8 @@ public:
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
-    send_result send_reliable(beam::message::capnproto<reliable_msg_t>& message);
-    send_result send_unreliable(beam::message::capnproto<unreliable_msg_t>& message);
+    send_result send_reliable(beam::message::buffer& message);
+    send_result send_unreliable(beam::message::buffer& message);
 private:
     sender(const sender&) = delete;
     sender& operator=(const sender&) = delete;
@@ -86,12 +88,13 @@ private:
     void deactivate();
     void on_expiry(const asio::error_code& error);
     static uint32_t get_packet_flags(channel_id::type channel);
-    send_result send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel);
-    static void free_message(ENetPacket* packet);
+    send_result send(beam::message::buffer& message, channel_id::type channel);
+    static void return_message(ENetPacket* packet);
     asio::io_service::strand& strand_;
     asio::high_resolution_timer timer_;
     event_handlers handlers_;
     perf_params params_;
+    beam::message::buffer_pool pool_;
     ENetHost* host_;
     ENetPeer* peer_;
 };
@@ -113,15 +116,26 @@ public:
 	std::function<void(const event_handlers& current)> on_timeout;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_connect;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
-	std::function<void(std::unique_ptr<beam::message::capnproto<unreliable_msg_t>>)> on_receive_unreliable_msg;
-	std::function<void(std::unique_ptr<beam::message::capnproto<reliable_msg_t>>)> on_receive_reliable_msg;
+	std::function<void(beam::message::unique_pool_ptr&& data)> on_receive_unreliable_msg;
+	std::function<void(beam::message::unique_pool_ptr&& data)> on_receive_reliable_msg;
     };
     struct perf_params
     {
-	perf_params(std::size_t connections, std::chrono::milliseconds wait = std::chrono::milliseconds(0), std::size_t in = 0, std::size_t out = 0) :
-		max_connections(connections), wait_amount(wait), in_bytes_per_sec(in), out_bytes_per_sec(out)
+	perf_params(
+		std::size_t connections,
+		std::size_t window,
+		std::chrono::milliseconds wait = std::chrono::milliseconds(0),
+		std::size_t in = 0,
+		std::size_t out = 0)
+	    :
+		max_connections(connections),
+		window_size(window),
+		wait_amount(wait),
+		in_bytes_per_sec(in),
+		out_bytes_per_sec(out)
 	{ }
 	std::size_t max_connections;
+	std::size_t window_size;
 	std::chrono::milliseconds wait_amount;
 	std::size_t in_bytes_per_sec;
 	std::size_t out_bytes_per_sec;
@@ -139,6 +153,7 @@ private:
     void check_events(const event_handlers handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
+    beam::message::buffer_pool pool_;
     ENetHost* host_;
 };
 

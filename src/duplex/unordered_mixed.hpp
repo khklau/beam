@@ -9,6 +9,7 @@
 #include <asio/strand.hpp>
 #include <beam/duplex/common.hpp>
 #include <beam/internet/ipv4.hpp>
+#include <beam/message/buffer_pool.hpp>
 #include <beam/message/capnproto.hpp>
 #include <enet/enet.h>
 #include <kj/array.h>
@@ -39,14 +40,15 @@ public:
         std::function<void(const event_handlers& current)> on_timeout;
         std::function<void(const in_connection& connection)> on_connect;
         std::function<void(const in_connection& connection)> on_disconnect;
-        std::function<void(const in_connection& connection, std::unique_ptr<beam::message::capnproto<unreliable_msg_t>>)> on_receive_unreliable_msg;
-        std::function<void(const in_connection& connection, std::unique_ptr<beam::message::capnproto<reliable_msg_t>>)> on_receive_reliable_msg;
+        std::function<void(const in_connection& connection, beam::message::unique_pool_ptr&& data)> on_receive_unreliable_msg;
+        std::function<void(const in_connection& connection, beam::message::unique_pool_ptr&& data)> on_receive_reliable_msg;
     };
-    in_connection(const key&, asio::io_service::strand& strand, ENetHost& host, ENetPeer& peer);
+    in_connection(const key&, asio::io_service::strand& strand, beam::message::buffer_pool& pool, ENetHost& host, ENetPeer& peer);
     beam::duplex::common::endpoint_id get_endpoint_id() const;
 private:
     in_connection() = delete;
     asio::io_service::strand& strand_;
+    beam::message::buffer_pool& pool_;
     ENetHost& host_;
     ENetPeer& peer_;
 };
@@ -57,23 +59,30 @@ class out_connection
 public:
     typedef unreliable_msg_t unreliable_msg_type;
     typedef reliable_msg_t reliable_msg_type;
-    out_connection(const key&, asio::io_service::strand& strand, ENetHost& host, ENetPeer& peer);
-    void send_unreliable(beam::message::capnproto<unreliable_msg_t>& message);
-    void send_reliable(beam::message::capnproto<reliable_msg_t>& message);
+    out_connection(const key&, asio::io_service::strand& strand, beam::message::buffer_pool& pool, ENetHost& host, ENetPeer& peer);
+    void send_unreliable(beam::message::buffer& message);
+    void send_reliable(beam::message::buffer& message);
 private:
     out_connection() = delete;
     static uint32_t get_packet_flags(channel_id::type channel);
-    static void free_message(ENetPacket* packet);
-    void send(kj::ArrayPtr<const kj::ArrayPtr<const capnp::word>> message, channel_id::type channel);
+    static void return_message(ENetPacket* packet);
+    void send(beam::message::buffer& message, channel_id::type channel);
     asio::io_service::strand& strand_;
+    beam::message::buffer_pool& pool_;
     ENetHost& host_;
     ENetPeer& peer_;
 };
 
 struct perf_params
 {
-    perf_params(std::size_t max, std::chrono::milliseconds timeout = std::chrono::milliseconds(15000), std::size_t download = 0, std::size_t upload = 0);
+    perf_params(
+	    std::size_t max,
+	    std::size_t window,
+	    std::chrono::milliseconds timeout = std::chrono::milliseconds(15000),
+	    std::size_t download = 0,
+	    std::size_t upload = 0);
     std::size_t max_connections;
+    std::size_t window_size;
     std::chrono::milliseconds connection_timeout;
     std::size_t download_bytes_per_sec;
     std::size_t upload_bytes_per_sec;
@@ -106,6 +115,7 @@ private:
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
+    beam::message::buffer_pool pool_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unique_ptr<ENetPeer, std::function<void(ENetPeer*)>> peer_;
     std::unique_ptr<out_connection_t> out_;
@@ -141,6 +151,7 @@ private:
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
+    beam::message::buffer_pool pool_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unordered_map<beam::duplex::common::endpoint_id, std::tuple<in_connection_t, out_connection_t>> peer_map_;
 };
