@@ -14,11 +14,11 @@ namespace message {
 
 typedef kj::Array<capnp::word> buffer;
 
-inline buffer make_buffer(std::size_t size)
+inline buffer make_buffer(std::size_t word_length)
 {
-    buffer result = std::move(kj::heapArray<capnp::word>(size));
+    buffer result = std::move(kj::heapArray<capnp::word>(word_length));
     // can't use std::fill_n because capnp::word isn't copyable
-    std::memset(result.begin(), 0, sizeof(capnp::word) * size);
+    std::memset(result.begin(), 0, sizeof(capnp::word) * word_length);
     return std::move(result);
 }
 

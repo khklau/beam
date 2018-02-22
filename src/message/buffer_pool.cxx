@@ -9,19 +9,20 @@ namespace {
 namespace beam {
 namespace message {
 
-buffer_pool::buffer_pool(std::size_t message_size, capacity_type capacity)
+buffer_pool::buffer_pool(std::size_t message_word_length, capacity_type capacity)
     :
 	pool_(),
 	free_list_(capacity),
-	default_msg_size_(message_size)
+	default_word_length_(message_word_length)
 {
-    for (auto iter = pool_.begin(); iter != pool_.end(); ++iter)
+    pool_.reserve(capacity);
+    for (std::size_t iter = 0U; iter < capacity; ++iter)
     {
-	if (default_msg_size_ > 0U)
+	if (default_word_length_ > 0U)
 	{
-	    *iter = make_buffer(default_msg_size_);
+	    pool_[iter] = std::move(make_buffer(default_word_length_));
 	}
-	free_list_.try_enqueue_copy(pool_.begin() - iter);
+	free_list_.try_enqueue_copy(iter);
     }
 }
 
@@ -65,18 +66,25 @@ void buffer_pool::revoke(capacity_type reservation)
     });
 }
 
-unique_pool_ptr buffer_pool::borrow(std::size_t required_size)
+unique_pool_ptr buffer_pool::borrow(std::size_t required_word_length)
 {
     capacity_type reservation = reserve();
-    if (pool_[reservation].size() < required_size)
+    if (pool_[reservation].size() < required_word_length)
     {
-	std::size_t new_size = pool_[reservation].size();
-	while (new_size < required_size)
+	std::size_t new_word_length = pool_[reservation].size();
+	if (new_word_length == 0U)
 	{
-	    // FIXME: it's unlikely but we really should handle a potential overflow
-	    new_size = (new_size * 3) >> 1;
+	    new_word_length = required_word_length;
 	}
-	pool_[reservation] = std::move(make_buffer(new_size));
+	else
+	{
+	    while (new_word_length < required_word_length)
+	    {
+		// FIXME: it's unlikely but we really should handle a potential overflow
+		new_word_length *= 2U;
+	    }
+	}
+	pool_[reservation] = std::move(make_buffer(new_word_length));
     }
     unique_pool_ptr result(
 	    &(pool_[reservation]),
@@ -86,7 +94,7 @@ unique_pool_ptr buffer_pool::borrow(std::size_t required_size)
 
 unique_pool_ptr buffer_pool::borrow()
 {
-    return std::move(borrow(default_msg_size_));
+    return std::move(borrow(default_word_length_));
 }
 
 unique_pool_ptr buffer_pool::borrow_and_copy(kj::ArrayPtr<capnp::word> source)

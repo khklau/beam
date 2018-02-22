@@ -18,7 +18,7 @@ class TURBO_SYMBOL_DECL buffer_pool
 {
 public:
     typedef std::uint32_t capacity_type;
-    buffer_pool(std::size_t message_size, capacity_type capacity);
+    buffer_pool(std::size_t message_word_length, capacity_type capacity);
     inline const buffer& operator[](capacity_type reservation) const
     {
 	return pool_[reservation];
@@ -29,7 +29,7 @@ public:
     }
     capacity_type reserve();
     void revoke(capacity_type reservation);
-    unique_pool_ptr borrow(std::size_t required_size);
+    unique_pool_ptr borrow(std::size_t required_word_length);
     unique_pool_ptr borrow();
     unique_pool_ptr borrow_and_copy(kj::ArrayPtr<capnp::word> source);
 private:
@@ -42,7 +42,7 @@ private:
     void reinstate(buffer* ptr);
     std::vector<buffer> pool_;
     free_list_type free_list_;
-    std::size_t default_msg_size_;
+    std::size_t default_word_length_;
 };
 
 } // namespace message
