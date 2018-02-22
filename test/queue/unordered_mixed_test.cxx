@@ -75,7 +75,7 @@ sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_t
 	service_(),
 	strand_(service_),
 	sender_(strand_, {std::bind(&sender_slave::on_disconnect, this, std::placeholders::_1, std::placeholders::_2)}, params),
-	pool_(0, params.window_size),
+	pool_(8U, params.window_size),
 	unreliable_queue_(128),
 	reliable_queue_(128)
 { }
@@ -165,7 +165,7 @@ void sender_slave::on_disconnect(const bii4::address&, const beam::queue::common
 receiver_master::receiver_master(bqc::endpoint_id&& point, receiver_type::perf_params&& params) :
 	service(),
 	strand(service),
-	pool(512U, 128U),
+	pool(8U, params.window_size),
 	receiver(strand, std::move(params))
 {
     bind(std::move(point));
