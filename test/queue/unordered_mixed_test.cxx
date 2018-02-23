@@ -54,6 +54,10 @@ private:
     bme::buffer_pool pool_;
     unreliable_queue_type unreliable_queue_;
     reliable_queue_type reliable_queue_;
+    unreliable_queue_type::producer& unreliable_producer_;
+    unreliable_queue_type::consumer& unreliable_consumer_;
+    reliable_queue_type::producer& reliable_producer_;
+    reliable_queue_type::consumer& reliable_consumer_;
 };
 
 struct receiver_master
@@ -77,7 +81,11 @@ sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_t
 	sender_(strand_, {std::bind(&sender_slave::on_disconnect, this, std::placeholders::_1, std::placeholders::_2)}, params),
 	pool_(8U, params.window_size),
 	unreliable_queue_(128),
-	reliable_queue_(128)
+	reliable_queue_(128),
+	unreliable_producer_(unreliable_queue_.get_producer()),
+	unreliable_consumer_(unreliable_queue_.get_consumer()),
+	reliable_producer_(reliable_queue_.get_producer()),
+	reliable_consumer_(reliable_queue_.get_consumer())
 { }
 
 sender_slave::~sender_slave()
@@ -112,7 +120,7 @@ void sender_slave::send_unreliable(bme::capnproto<bqu::UnreliableMsg>& message)
 {
     bme::unique_pool_ptr buffer = pool_.borrow();
     *buffer = std::move(message.serialise());
-    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Unreliable message enqueue failed";
     service_.post(std::bind(&sender_slave::on_send_unreliable, this));
 }
@@ -121,7 +129,7 @@ void sender_slave::send_reliable(bme::capnproto<bqu::ReliableMsg>& message)
 {
     bme::unique_pool_ptr buffer = pool_.borrow();
     *buffer = std::move(message.serialise());
-    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Reliable message enqueue failed";
     service_.post(std::bind(&sender_slave::on_send_reliable, this));
 }
@@ -144,7 +152,7 @@ void sender_slave::brake()
 void sender_slave::on_send_unreliable()
 {
     bme::unique_pool_ptr message;
-    ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_queue_.get_consumer().try_dequeue_move(message))
+    ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_consumer_.try_dequeue_move(message))
 	    << "Unreliable message dequeue failed";
     sender_.send_unreliable(*message);
 }
@@ -152,7 +160,7 @@ void sender_slave::on_send_unreliable()
 void sender_slave::on_send_reliable()
 {
     bme::unique_pool_ptr message;
-    ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_queue_.get_consumer().try_dequeue_move(message))
+    ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_consumer_.try_dequeue_move(message))
 	    << "Reliable message dequeue failed";
     sender_.send_reliable(*message);
 }
@@ -205,11 +213,11 @@ void setupConnection(::receiver_master& master, ::sender_slave& slave)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::UnreliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::ReliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -224,7 +232,7 @@ void setupConnection(::receiver_master& master, ::sender_slave& slave)
 TEST(unordered_mixed_test, basic_unreliable)
 {
     ::receiver_master master({0U, 8888U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8888U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8888U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::size_t unreliable_count = 0;
     while (unreliable_count == 0)
@@ -247,13 +255,12 @@ TEST(unordered_mixed_test, basic_unreliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::UnreliableMsg>& message)
 	    {
-		bme::capnproto<bqu::UnreliableMsg> message(std::move(data));
 		ASSERT_EQ(123U, message.read().getValue()) << "Incorrect message value";
 		++unreliable_count;
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::ReliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -266,7 +273,7 @@ TEST(unordered_mixed_test, basic_unreliable)
 TEST(unordered_mixed_test, basic_reliable)
 {
     ::receiver_master master({0U, 8889U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8889U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     bme::capnproto<bqu::ReliableMsg> message(std::move(master.pool.borrow()));
     bqu::ReliableMsg::Builder builder = message.build();
@@ -289,13 +296,12 @@ TEST(unordered_mixed_test, basic_reliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::UnreliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::ReliableMsg>& message)
 	    {
-		bme::capnproto<bqu::ReliableMsg> message(std::move(data));
 		ASSERT_STREQ("foo", message.read().getValue().cStr()) << "Incorrect message value";
 		++reliable_count;
 	    }
@@ -309,7 +315,7 @@ TEST(unordered_mixed_test, basic_reliable)
 TEST(unordered_mixed_test, multi_unreliable)
 {
     ::receiver_master master({0U, 8888U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8888U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8888U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<uint32_t> values({123U, 456U, 789U});
     auto iter = values.begin();
@@ -345,15 +351,14 @@ TEST(unordered_mixed_test, multi_unreliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::UnreliableMsg>& message)
 	    {
-		bme::capnproto<bqu::UnreliableMsg> message(std::move(data));
 		auto result = values.find(message.read().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
 		++unreliable_count;
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::ReliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected reliable message");
 	    }
@@ -367,7 +372,7 @@ TEST(unordered_mixed_test, multi_unreliable)
 TEST(unordered_mixed_test, multi_reliable)
 {
     ::receiver_master master({0U, 8889U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8889U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8889U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<std::string> values({"abc", "xyz", "!@#"});
     auto iter = values.begin();
@@ -404,13 +409,12 @@ TEST(unordered_mixed_test, multi_reliable)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&&)
+	    [&](bme::capnproto<bqu::UnreliableMsg>&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected unreliable message");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::ReliableMsg>& message)
 	    {
-		bme::capnproto<bqu::ReliableMsg> message(std::move(data));
 		auto result = values.find(message.read().getValue());
 		ASSERT_NE(values.end(), result) << "Incorrect message value";
 		values.erase(result);
@@ -426,7 +430,7 @@ TEST(unordered_mixed_test, multi_reliable)
 TEST(unordered_mixed_test, basic_mixed)
 {
     ::receiver_master master({0U, 8890U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8890U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8890U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     bme::capnproto<bqu::ReliableMsg> message1(std::move(master.pool.borrow()));
     bqu::ReliableMsg::Builder builder1 = message1.build();
@@ -454,15 +458,13 @@ TEST(unordered_mixed_test, basic_mixed)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::UnreliableMsg>& message)
 	    {
-		bme::capnproto<bqu::UnreliableMsg> message(std::move(data));
 		ASSERT_EQ(999U, message.read().getValue()) << "Incorrect unreliable message value";
 		++unreliable_count;
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::ReliableMsg>& message)
 	    {
-		bme::capnproto<bqu::ReliableMsg> message(std::move(data));
 		ASSERT_STREQ("bar", message.read().getValue().cStr()) << "Incorrect reliable message value";
 		++reliable_count;
 	    }
@@ -476,7 +478,7 @@ TEST(unordered_mixed_test, basic_mixed)
 TEST(unordered_mixed_test, multi_mixed)
 {
     ::receiver_master master({0U, 8890U}, {24U, 64U, std::chrono::milliseconds(0)});
-    ::sender_slave slave(::localhost, 8890U, {128U, std::chrono::microseconds(0)});
+    ::sender_slave slave(::localhost, 8890U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<std::string> reliableValues({"abc", "xyz", "!@#"});
     auto reliableIter = reliableValues.begin();
@@ -531,17 +533,15 @@ TEST(unordered_mixed_test, multi_mixed)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::UnreliableMsg>& message)
 	    {
-		bme::capnproto<bqu::UnreliableMsg> message(std::move(data));
 		auto result = unreliableValues.find(message.read().getValue());
 		ASSERT_NE(unreliableValues.end(), result) << "Incorrect unreliable message value";
 		unreliableValues.erase(result);
 		++unreliable_count;
 	    },
-	    [&](bme::unique_pool_ptr&& data)
+	    [&](bme::capnproto<bqu::ReliableMsg>& message)
 	    {
-		bme::capnproto<bqu::ReliableMsg> message(std::move(data));
 		auto result = reliableValues.find(message.read().getValue());
 		ASSERT_NE(reliableValues.end(), result) << "Incorrect reliable message value";
 		reliableValues.erase(result);
