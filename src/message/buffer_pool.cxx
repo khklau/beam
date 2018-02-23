@@ -15,7 +15,7 @@ buffer_pool::buffer_pool(std::size_t message_word_length, capacity_type capacity
 	free_list_(capacity),
 	default_word_length_(message_word_length)
 {
-    pool_.reserve(capacity);
+    pool_ = kj::heapArray<buffer>(capacity);
     for (std::size_t iter = 0U; iter < capacity; ++iter)
     {
 	if (default_word_length_ > 0U)

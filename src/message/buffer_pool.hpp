@@ -40,7 +40,7 @@ private:
     buffer_pool& operator=(const buffer_pool&) = delete;
     buffer_pool& operator=(buffer_pool&&) = delete;
     void reinstate(buffer* ptr);
-    std::vector<buffer> pool_;
+    kj::Array<buffer> pool_;
     free_list_type free_list_;
     std::size_t default_word_length_;
 };
