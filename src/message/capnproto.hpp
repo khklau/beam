@@ -18,6 +18,7 @@ class capnproto
 public:
     typedef message_t message_type;
     explicit capnproto(unique_pool_ptr&& buffer);
+    capnproto(kj::ArrayPtr<capnp::word> source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
