@@ -308,14 +308,16 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		    kj::ArrayPtr<capnp::word> source(
 			    reinterpret_cast<capnp::word*>(event.packet->data),
 			    event.packet->dataLength / sizeof(capnp::word));
-		    bme::unique_pool_ptr buffer = std::move(pool_.borrow_and_copy(source));
+		    bme::unique_pool_ptr buffer = std::move(pool_.borrow(source.size()));
 		    if (event.channelID == channel_id::unreliable)
 		    {
-			handlers.on_receive_unreliable_msg(std::move(buffer));
+			bme::capnproto<unreliable_msg_type> message(source, std::move(buffer));
+			handlers.on_receive_unreliable_msg(message);
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
-			handlers.on_receive_reliable_msg(std::move(buffer));
+			bme::capnproto<reliable_msg_type> message(source, std::move(buffer));
+			handlers.on_receive_reliable_msg(message);
 		    }
 		    enet_packet_destroy(event.packet);
 		    break;
