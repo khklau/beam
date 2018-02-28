@@ -57,6 +57,14 @@ private:
     reliable_queue_type reliable_in_queue_;
     unreliable_queue_type unreliable_out_queue_;
     reliable_queue_type reliable_out_queue_;
+    unreliable_queue_type::producer& unreliable_in_producer_;
+    unreliable_queue_type::consumer& unreliable_in_consumer_;
+    reliable_queue_type::producer& reliable_in_producer_;
+    reliable_queue_type::consumer& reliable_in_consumer_;
+    unreliable_queue_type::producer& unreliable_out_producer_;
+    unreliable_queue_type::consumer& unreliable_out_consumer_;
+    reliable_queue_type::producer& reliable_out_producer_;
+    reliable_queue_type::consumer& reliable_out_consumer_;
     in_connection_type::event_handlers handlers_;
 };
 
@@ -71,6 +79,14 @@ initiator_slave::initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params)
 	reliable_in_queue_(128),
 	unreliable_out_queue_(128),
 	reliable_out_queue_(128),
+	unreliable_in_producer_(unreliable_in_queue_.get_producer()),
+	unreliable_in_consumer_(unreliable_in_queue_.get_consumer()),
+	reliable_in_producer_(reliable_in_queue_.get_producer()),
+	reliable_in_consumer_(reliable_in_queue_.get_consumer()),
+	unreliable_out_producer_(unreliable_out_queue_.get_producer()),
+	unreliable_out_consumer_(unreliable_out_queue_.get_consumer()),
+	reliable_out_producer_(reliable_out_queue_.get_producer()),
+	reliable_out_consumer_(reliable_out_queue_.get_consumer()),
 	handlers_(
 	{
 	    [&](const in_connection_type::event_handlers&)
@@ -87,13 +103,13 @@ initiator_slave::initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params)
 	    },
 	    [&](const in_connection_type&, bme::unique_pool_ptr&& data)
 	    {
-		ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_in_queue_.get_producer().try_enqueue_move(std::move(data)))
+		ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_in_producer_.try_enqueue_move(std::move(data)))
 			<< "Unreliable message enqueue failed";
 		initiator_.async_receive(handlers_);
 	    },
 	    [&](const in_connection_type&, bme::unique_pool_ptr&& data)
 	    {
-		ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_in_queue_.get_producer().try_enqueue_move(std::move(data)))
+		ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_in_producer_.try_enqueue_move(std::move(data)))
 			<< "Reliable message enqueue failed";
 		initiator_.async_receive(handlers_);
 	    }
@@ -132,7 +148,7 @@ void initiator_slave::send_unreliable(bme::capnproto<bdu::UnreliableMsg>& messag
 {
     bme::unique_pool_ptr buffer = pool_.borrow();
     *buffer = std::move(message.serialise());
-    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_out_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_out_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Unreliable message enqueue failed";
     initiator_.async_send(std::bind(&initiator_slave::on_send_unreliable, this, std::placeholders::_1));
 }
@@ -141,19 +157,19 @@ void initiator_slave::send_reliable(bme::capnproto<bdu::ReliableMsg>& message)
 {
     bme::unique_pool_ptr buffer = pool_.borrow();
     *buffer = std::move(message.serialise());
-    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_out_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_out_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Reliable message enqueue failed";
     initiator_.async_send(std::bind(&initiator_slave::on_send_reliable, this, std::placeholders::_1));
 }
 
 initiator_slave::unreliable_queue_type::consumer::result initiator_slave::try_receive_unreliable(bme::unique_pool_ptr& output)
 {
-    return unreliable_in_queue_.get_consumer().try_dequeue_move(output);
+    return unreliable_in_consumer_.try_dequeue_move(output);
 }
 
 initiator_slave::reliable_queue_type::consumer::result initiator_slave::try_receive_reliable(bme::unique_pool_ptr& output)
 {
-    return reliable_in_queue_.get_consumer().try_dequeue_move(output);
+    return reliable_in_consumer_.try_dequeue_move(output);
 }
 
 void initiator_slave::run()
@@ -175,7 +191,7 @@ void initiator_slave::brake()
 void initiator_slave::on_send_unreliable(out_connection_type& connection)
 {
     bme::unique_pool_ptr message;
-    ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_out_queue_.get_consumer().try_dequeue_move(message))
+    ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_out_consumer_.try_dequeue_move(message))
 	    << "Unreliable message dequeue failed";
     connection.send_unreliable(*message);
 }
@@ -183,7 +199,7 @@ void initiator_slave::on_send_unreliable(out_connection_type& connection)
 void initiator_slave::on_send_reliable(out_connection_type& connection)
 {
     bme::unique_pool_ptr message;
-    ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_out_queue_.get_consumer().try_dequeue_move(message))
+    ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_out_consumer_.try_dequeue_move(message))
 	    << "Reliable message dequeue failed";
     connection.send_reliable(*message);
 }
@@ -213,6 +229,14 @@ private:
     reliable_queue_type reliable_in_queue_;
     unreliable_queue_type unreliable_out_queue_;
     reliable_queue_type reliable_out_queue_;
+    unreliable_queue_type::producer& unreliable_in_producer_;
+    unreliable_queue_type::consumer& unreliable_in_consumer_;
+    reliable_queue_type::producer& reliable_in_producer_;
+    reliable_queue_type::consumer& reliable_in_consumer_;
+    unreliable_queue_type::producer& unreliable_out_producer_;
+    unreliable_queue_type::consumer& unreliable_out_consumer_;
+    reliable_queue_type::producer& reliable_out_producer_;
+    reliable_queue_type::consumer& reliable_out_consumer_;
 };
 
 responder_master::responder_master(bdc::endpoint_id&& point, bdu::perf_params&& params) :
@@ -224,7 +248,15 @@ responder_master::responder_master(bdc::endpoint_id&& point, bdu::perf_params&& 
 	unreliable_in_queue_(128),
 	reliable_in_queue_(128),
 	unreliable_out_queue_(128),
-	reliable_out_queue_(128)
+	reliable_out_queue_(128),
+	unreliable_in_producer_(unreliable_in_queue_.get_producer()),
+	unreliable_in_consumer_(unreliable_in_queue_.get_consumer()),
+	reliable_in_producer_(reliable_in_queue_.get_producer()),
+	reliable_in_consumer_(reliable_in_queue_.get_consumer()),
+	unreliable_out_producer_(unreliable_out_queue_.get_producer()),
+	unreliable_out_consumer_(unreliable_out_queue_.get_consumer()),
+	reliable_out_producer_(reliable_out_queue_.get_producer()),
+	reliable_out_consumer_(reliable_out_queue_.get_consumer())
 {
     bind(std::move(point));
 }
@@ -246,7 +278,7 @@ void responder_master::send_unreliable(const bdc::endpoint_id& point, bme::capnp
 {
     bme::unique_pool_ptr buffer = pool.borrow();
     *buffer = message.serialise();
-    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_in_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_in_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Unreliable message enqueue failed";
     responder.async_send(std::bind(&responder_master::on_send_unreliable, this, point, std::placeholders::_1));
 }
@@ -255,7 +287,7 @@ void responder_master::send_reliable(const bdc::endpoint_id& point, bme::capnpro
 {
     bme::unique_pool_ptr buffer = pool.borrow();
     *buffer = message.serialise();
-    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_in_queue_.get_producer().try_enqueue_move(std::move(buffer)))
+    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_in_producer_.try_enqueue_move(std::move(buffer)))
 	    << "Reliable message enqueue failed";
     responder.async_send(std::bind(&responder_master::on_send_reliable, this, point, std::placeholders::_1));
 }
@@ -266,7 +298,7 @@ void responder_master::on_send_unreliable(bdc::endpoint_id point, std::function<
     if (connection != nullptr)
     {
 	bme::unique_pool_ptr message;
-	ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_in_queue_.get_consumer().try_dequeue_move(message))
+	ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_in_consumer_.try_dequeue_move(message))
 		<< "Unreliable message dequeue failed";
 	connection->send_unreliable(*message);
     }
@@ -278,7 +310,7 @@ void responder_master::on_send_reliable(bdc::endpoint_id point, std::function<ou
     if (connection != nullptr)
     {
 	bme::unique_pool_ptr message;
-	ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_in_queue_.get_consumer().try_dequeue_move(message))
+	ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_in_consumer_.try_dequeue_move(message))
 		<< "Reliable message dequeue failed";
 	connection->send_reliable(*message);
     }
