@@ -2,10 +2,6 @@
 #include <utility>
 #include <turbo/container/mpmc_ring_queue.hxx>
 
-namespace {
-
-} // anonymous namespace
-
 namespace beam {
 namespace message {
 
