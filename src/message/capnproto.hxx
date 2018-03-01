@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <utility>
 #include <algorithm>
+#include <turbo/toolset/extension.hpp>
 
 namespace beam {
 namespace message {
@@ -29,6 +30,33 @@ template <class message_t>
 buffer capnproto<message_t>::serialise()
 {
     return std::move(capnp::messageToFlatArray(builder_));
+}
+
+template <class message_t>
+payload<message_t> borrow_and_copy(buffer_pool& pool, kj::ArrayPtr<capnp::word> source)
+{
+    bool copied = false;
+    unique_pool_ptr buffer;
+    std::size_t buffer_size = source.size();
+    capnp::FlatArrayMessageReader reader(source);
+    while (!copied)
+    {
+	buffer = std::move(pool.borrow(buffer_size));
+	capnp::MallocMessageBuilder builder(buffer->asPtr());
+	builder.setRoot(reader.getRoot<message_t>());
+	if (TURBO_LIKELY(1U == builder.getSegmentsForOutput().size()))
+	{
+	    copied = true;
+	}
+	else
+	{
+	    // the borrowed buffer wasn't big enough to fit the whole message
+	    buffer_size *= 2U;
+	    // TODO: log a warning?
+	}
+    }
+    payload<message_t> result(std::move(buffer));
+    return std::move(result);
 }
 
 } // namespace message
