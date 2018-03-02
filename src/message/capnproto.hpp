@@ -14,6 +14,9 @@ namespace beam {
 namespace message {
 
 template <class message_t>
+class TURBO_SYMBOL_DECL key;
+
+template <class message_t>
 class TURBO_SYMBOL_DECL payload
 {
 public:
@@ -22,10 +25,14 @@ public:
     {
 	return capnp::FlatArrayMessageReader(buffer_->asPtr());
     }
+    inline explicit operator unique_pool_ptr()
+    {
+	return std::move(unique_pool_ptr(std::move(buffer_)));
+    }
 private:
     payload() = delete;
-    payload(payload&&) = delete;
-    payload& operator=(payload&&) = delete;
+    payload(const payload&) = delete;
+    payload& operator=(const payload&) = delete;
     unique_pool_ptr buffer_;
 };
 
@@ -35,6 +42,7 @@ class TURBO_SYMBOL_DECL capnproto
 public:
     typedef message_t message_type;
     explicit capnproto(unique_pool_ptr&& buffer);
+    explicit capnproto(payload<message_t>&& source);
     capnproto(kj::ArrayPtr<capnp::word> source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
@@ -53,6 +61,7 @@ public:
     /// the segment info + body message.
     ///
     buffer serialise();
+    buffer serialise(const key<message_t>&);
 private:
     capnproto() = delete;
     capnproto(const capnproto&) = delete;
@@ -63,6 +72,9 @@ private:
 
 template <class message_t>
 TURBO_SYMBOL_DECL payload<message_t> borrow_and_copy(buffer_pool& pool, kj::ArrayPtr<capnp::word> source);
+
+template <class message_t>
+TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto<message_t>& message);
 
 } // namespace message
 } // namespace beam
