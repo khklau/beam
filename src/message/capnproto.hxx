@@ -18,6 +18,13 @@ class key
 };
 
 template <class message_t>
+capnproto_deed<message_t>::capnproto_deed(payload<message_t>&& source)
+    :
+	buffer_(std::move(static_cast<unique_pool_ptr>(source))),
+	reader_(buffer_->asPtr())
+{ }
+
+template <class message_t>
 capnproto<message_t>::capnproto(unique_pool_ptr&& buffer)
     :
 	buffer_(std::move(buffer)),
@@ -50,18 +57,6 @@ template <class message_t>
 buffer capnproto<message_t>::serialise(const key<message_t>&)
 {
     return std::move(capnp::messageToFlatArray(builder_));
-}
-
-template <class message_t>
-payload<message_t> borrow_and_copy(buffer_pool& pool, kj::ArrayPtr<capnp::word> source)
-{
-    capnp::FlatArrayMessageReader reader(source);
-    unique_pool_ptr buffer = std::move(pool.borrow(source.size()));
-    capnp::MallocMessageBuilder builder(buffer->asPtr());
-    builder.setRoot(reader.getRoot<message_t>());
-    assert(builder.getSegmentsForOutput().size() == 1);
-    payload<message_t> result(std::move(buffer));
-    return std::move(result);
 }
 
 template <class message_t>

@@ -20,20 +20,41 @@ template <class message_t>
 class TURBO_SYMBOL_DECL payload
 {
 public:
+    typedef message_t message_type;
+    inline payload() : buffer_() { };
+    inline payload(payload&& other) : buffer_(std::move(other.buffer_)) { };
     inline explicit payload(unique_pool_ptr&& buffer) : buffer_(std::move(buffer)) { }
-    inline capnp::FlatArrayMessageReader read()
+    inline payload& operator=(payload&& other)
     {
-	return capnp::FlatArrayMessageReader(buffer_->asPtr());
+	buffer_ = std::move(other.buffer_);
+	return *this;
     }
     inline explicit operator unique_pool_ptr()
     {
 	return std::move(unique_pool_ptr(std::move(buffer_)));
     }
 private:
-    payload() = delete;
     payload(const payload&) = delete;
     payload& operator=(const payload&) = delete;
     unique_pool_ptr buffer_;
+};
+
+template <class message_t>
+class TURBO_SYMBOL_DECL capnproto_deed
+{
+public:
+    typedef message_t message_type;
+    explicit capnproto_deed(payload<message_t>&& source);
+    inline typename message_type::Reader read()
+    {
+	return reader_.getRoot<message_type>();
+    }
+private:
+    capnproto_deed() = delete;
+    capnproto_deed(const capnproto_deed&) = delete;
+    capnproto_deed& operator=(const capnproto_deed&) = delete;
+    unique_pool_ptr buffer_;
+    capnp::FlatArrayMessageReader reader_;
 };
 
 template <class message_t>
@@ -69,9 +90,6 @@ private:
     unique_pool_ptr buffer_;
     capnp::MallocMessageBuilder builder_;
 };
-
-template <class message_t>
-TURBO_SYMBOL_DECL payload<message_t> borrow_and_copy(buffer_pool& pool, kj::ArrayPtr<capnp::word> source);
 
 template <class message_t>
 TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto<message_t>& message);
