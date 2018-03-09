@@ -84,15 +84,15 @@ void out_connection<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void out_connection<unreliable_msg_t, reliable_msg_t>::send_unreliable(beam::message::buffer& message)
+void out_connection<unreliable_msg_t, reliable_msg_t>::send_unreliable(beam::message::payload<unreliable_msg_t>& message)
 {
-    send(message, channel_id::unreliable);
+    send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void out_connection<unreliable_msg_t, reliable_msg_t>::send_reliable(beam::message::buffer& message)
+void out_connection<unreliable_msg_t, reliable_msg_t>::send_reliable(beam::message::payload<reliable_msg_t>& message)
 {
-    send(message, channel_id::reliable);
+    send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -244,14 +244,15 @@ void initiator<in_connection_t, out_connection_t>::exec_receive(const typename i
                     kj::ArrayPtr<capnp::word> source(
                             reinterpret_cast<capnp::word*>(event.packet->data),
                             event.packet->dataLength / sizeof(capnp::word));
-		    bme::unique_pool_ptr buffer = std::move(pool_.borrow_and_copy(source));
                     if (event.channelID == channel_id::unreliable)
                     {
-                        handlers.on_receive_unreliable_msg(in, std::move(buffer));
+			bme::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+                        handlers.on_receive_unreliable_msg(in, std::move(payload));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
-                        handlers.on_receive_reliable_msg(in, std::move(buffer));
+			bme::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+                        handlers.on_receive_reliable_msg(in, std::move(payload));
                     }
                     enet_packet_destroy(event.packet);
                     break;
@@ -393,14 +394,15 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                     kj::ArrayPtr<capnp::word> source(
                             reinterpret_cast<capnp::word*>(event.packet->data),
                             event.packet->dataLength / sizeof(capnp::word));
-		    bme::unique_pool_ptr buffer = std::move(pool_.borrow_and_copy(source));
                     if (event.channelID == channel_id::unreliable)
                     {
-                        handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(buffer));
+			bme::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+                        handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(payload));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
-                        handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(buffer));
+			bme::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+                        handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(payload));
                     }
                     enet_packet_destroy(event.packet);
                     break;
