@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <asio/io_service.hpp>
 #include <asio/strand.hpp>
@@ -82,6 +83,19 @@ public:
     send_result send_reliable(beam::message::buffer& message);
     send_result send_unreliable(beam::message::buffer& message);
 private:
+    struct delivery_metadata
+    {
+	inline delivery_metadata(
+		beam::message::buffer_pool* p,
+		std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata>* m)
+	    :
+		pool(p),
+		metadata_map(m)
+	{ }
+	beam::message::buffer_pool* pool;
+	std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata>* metadata_map;
+    };
+    typedef std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata> metadata_map_type;
     sender(const sender&) = delete;
     sender& operator=(const sender&) = delete;
     void activate();
@@ -95,6 +109,7 @@ private:
     event_handlers handlers_;
     perf_params params_;
     beam::message::buffer_pool pool_;
+    metadata_map_type metadata_;
     ENetHost* host_;
     ENetPeer* peer_;
 };

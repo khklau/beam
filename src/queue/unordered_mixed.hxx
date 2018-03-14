@@ -2,6 +2,7 @@
 #define BEAM_QUEUE_UNORDERED_MIXED_HXX
 
 #include <cstring>
+#include <tuple>
 #include <capnp/common.h>
 #include <capnp/serialize.h>
 #include <kj/array.h>
@@ -35,7 +36,8 @@ sender<unreliable_msg_t, reliable_msg_t>::sender(asio::io_service::strand& stran
 	timer_(strand_.get_io_service()),
 	handlers_(handlers),
 	params_(params),
-	pool_(0U, params_.window_size),
+	pool_(0U, params_.window_size), // FIXME: should not be empty otherwise heap allocation is needed later!
+	metadata_(params_.window_size),
 	host_(nullptr),
 	peer_(nullptr)
 {
@@ -144,12 +146,17 @@ typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable
 	return send_result::not_connected;
     }
     auto reservation = pool_.reserve();
-    pool_[reservation] = std::move(message);
+    pool_[reservation] = std::move(message); // FIXME: should swap rather than assign otherwise allocation is needed again later
+    auto emplace_result = metadata_.emplace(
+	    std::piecewise_construct,
+	    std::make_tuple(reservation),
+	    std::make_tuple(&pool_, &metadata_));
+    assert(emplace_result.second);
     ENetPacket* packet = enet_packet_create(
 	    pool_[reservation].begin(),
 	    pool_[reservation].size() *  sizeof(capnp::word),
 	    get_packet_flags(channel));
-    packet->userData = static_cast<beam::message::buffer_pool*>(&pool_);
+    packet->userData = &(*(emplace_result.first));
     packet->freeCallback = &sender<unreliable_msg_t, reliable_msg_t>::return_message;
     if (enet_peer_send(peer_, channel, packet) == 0)
     {
@@ -208,9 +215,11 @@ void sender<unreliable_msg_t, reliable_msg_t>::on_expiry(const asio::error_code&
 template <class unreliable_msg_t, class reliable_msg_t>
 void sender<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket* packet)
 {
-    auto pool = static_cast<beam::message::buffer_pool*>(packet->userData);
-    beam::message::buffer_pool::capacity_type reservation = static_cast<beam::message::buffer*>(static_cast<void*>(packet->data)) - &((*pool)[0]);
-    pool->revoke(reservation);
+    auto metadata = static_cast<typename metadata_map_type::value_type*>(packet->userData);
+    assert(metadata != nullptr);
+    metadata->second.pool->revoke(metadata->first);
+    auto erase_count = metadata->second.metadata_map->erase(metadata->first);
+    assert(erase_count == 1);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
