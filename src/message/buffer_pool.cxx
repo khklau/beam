@@ -1,4 +1,5 @@
 #include "buffer_pool.hpp"
+#include <cassert>
 #include <utility>
 #include <turbo/container/mpmc_ring_queue.hxx>
 
@@ -18,6 +19,7 @@ buffer_pool::buffer_pool(std::size_t message_word_length, capacity_type capacity
 	{
 	    pool_[iter] = std::move(make_buffer(default_word_length_));
 	}
+	assert(iter < pool_.size());
 	free_list_.try_enqueue_copy(iter);
     }
 }
@@ -40,11 +42,13 @@ buffer_pool::capacity_type buffer_pool::reserve()
 	    }
 	}
     });
+    assert(reservation < pool_.size());
     return reservation;
 }
 
 void buffer_pool::revoke(capacity_type reservation)
 {
+    assert(reservation < pool_.size());
     namespace tar = turbo::algorithm::recovery;
     tar::retry_with_random_backoff([&] () -> tar::try_state
     {
@@ -97,12 +101,14 @@ unique_pool_ptr buffer_pool::borrow_and_copy(kj::ArrayPtr<capnp::word> source)
 {
     auto buffer = std::move(borrow(source.size()));
     std::memcpy(buffer->begin(), source.begin(), sizeof(capnp::word) * buffer->size());
+    // FIXME: if source.size() < buffer.size() the remaining unused space needs to be zeroed
     return std::move(buffer);
 }
 
 void buffer_pool::reinstate(buffer* ptr)
 {
-    capacity_type reservation = &(pool_[0]) - ptr;
+    capacity_type reservation = ptr - &(pool_[0]);
+    assert(reservation < pool_.size());
     revoke(reservation);
 }
 
