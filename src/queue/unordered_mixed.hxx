@@ -217,9 +217,9 @@ void sender<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket* packet
 {
     auto metadata = static_cast<typename metadata_map_type::value_type*>(packet->userData);
     assert(metadata != nullptr);
-    metadata->second.pool->revoke(metadata->first);
-    auto erase_count = metadata->second.metadata_map->erase(metadata->first);
-    assert(erase_count == 1);
+    auto reservation = metadata->first;
+    metadata->second.pool->revoke(reservation);
+    metadata->second.metadata_map->erase(reservation);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
