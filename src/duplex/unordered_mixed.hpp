@@ -57,9 +57,28 @@ template <class unreliable_msg_t, class reliable_msg_t>
 class out_connection
 {
 public:
+    struct delivery_metadata
+    {
+	inline delivery_metadata(
+		beam::message::buffer_pool* p,
+		std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata>* m)
+	    :
+		pool(p),
+		metadata_map(m)
+	{ }
+	beam::message::buffer_pool* pool;
+	std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata>* metadata_map;
+    };
+    typedef std::unordered_map<beam::message::buffer_pool::capacity_type, delivery_metadata> metadata_map_type;
     typedef unreliable_msg_t unreliable_msg_type;
     typedef reliable_msg_t reliable_msg_type;
-    out_connection(const key&, asio::io_service::strand& strand, beam::message::buffer_pool& pool, ENetHost& host, ENetPeer& peer);
+    out_connection(
+	    const key&,
+	    asio::io_service::strand& strand,
+	    beam::message::buffer_pool& pool,
+	    metadata_map_type& metadata,
+	    ENetHost& host,
+	    ENetPeer& peer);
     void send_unreliable(beam::message::payload<unreliable_msg_t>& message);
     void send_reliable(beam::message::payload<reliable_msg_t>& message);
 private:
@@ -69,6 +88,7 @@ private:
     void send(beam::message::buffer& message, channel_id::type channel);
     asio::io_service::strand& strand_;
     beam::message::buffer_pool& pool_;
+    metadata_map_type& metadata_;
     ENetHost& host_;
     ENetPeer& peer_;
 };
@@ -116,6 +136,7 @@ private:
     asio::io_service::strand& strand_;
     perf_params params_;
     beam::message::buffer_pool pool_;
+    typename out_connection_type::metadata_map_type metadata_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unique_ptr<ENetPeer, std::function<void(ENetPeer*)>> peer_;
     std::unique_ptr<out_connection_t> out_;
@@ -152,6 +173,7 @@ private:
     asio::io_service::strand& strand_;
     perf_params params_;
     beam::message::buffer_pool pool_;
+    typename out_connection_type::metadata_map_type metadata_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
     std::unordered_map<beam::duplex::common::endpoint_id, std::tuple<in_connection_t, out_connection_t>> peer_map_;
 };

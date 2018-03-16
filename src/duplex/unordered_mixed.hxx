@@ -50,11 +50,13 @@ out_connection<unreliable_msg_t, reliable_msg_t>::out_connection(
 	const key&,
 	asio::io_service::strand& strand,
 	beam::message::buffer_pool& pool,
+	metadata_map_type& metadata,
 	ENetHost& host,
 	ENetPeer& peer)
     :
 	strand_(strand),
 	pool_(pool),
+	metadata_(metadata),
 	host_(host),
 	peer_(peer)
 { }
@@ -78,9 +80,11 @@ uint32_t out_connection<unreliable_msg_t, reliable_msg_t>::get_packet_flags(chan
 template <class unreliable_msg_t, class reliable_msg_t>
 void out_connection<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket* packet)
 {
-    auto pool = static_cast<beam::message::buffer_pool*>(packet->userData);
-    beam::message::buffer_pool::capacity_type reservation = static_cast<beam::message::buffer*>(static_cast<void*>(packet->data)) - &((*pool)[0]);
-    pool->revoke(reservation);
+    auto metadata = static_cast<typename metadata_map_type::value_type*>(packet->userData);
+    assert(metadata != nullptr);
+    auto reservation = metadata->first;
+    metadata->second.pool->revoke(reservation);
+    metadata->second.metadata_map->erase(reservation);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -100,11 +104,16 @@ void out_connection<unreliable_msg_t, reliable_msg_t>::send(beam::message::buffe
 {
     auto reservation = pool_.reserve();
     pool_[reservation] = std::move(message);
+    auto emplace_result = metadata_.emplace(
+	    std::piecewise_construct,
+	    std::make_tuple(reservation),
+	    std::make_tuple(&pool_, &metadata_));
+    assert(emplace_result.second);
     ENetPacket* packet = enet_packet_create(
             pool_[reservation].begin(),
             pool_[reservation].size() *  sizeof(capnp::word),
             get_packet_flags(channel));
-    packet->userData = static_cast<beam::message::buffer_pool*>(&pool_);
+    packet->userData = &(*(emplace_result.first));
     packet->freeCallback = &out_connection<unreliable_msg_t, reliable_msg_t>::return_message;
     if (TURBO_LIKELY(enet_peer_send(&peer_, channel, packet) == 0))
     {
@@ -135,6 +144,7 @@ initiator<in_connection_t, out_connection_t>::initiator(asio::io_service::strand
 	strand_(strand),
 	params_(std::move(params)),
 	pool_(0U, params_.window_size),
+	metadata_(params_.window_size),
 	host_(nullptr, [](ENetHost* host) { enet_host_destroy(host); }),
 	peer_(nullptr, [](ENetPeer* peer) { enet_peer_reset(peer); }),
 	out_()
@@ -169,7 +179,7 @@ connection_result initiator<in_connection_t, out_connection_t>::connect(std::vec
             if (enet_host_service(host_.get(), &event, params_.connection_timeout.count()) > 0 && event.type == ENET_EVENT_TYPE_CONNECT)
             {
                 peer_.reset(peer);
-                out_.reset(new out_connection_t(key(*this), strand_, pool_, *host_, *peer_));
+                out_.reset(new out_connection_t(key(*this), strand_, pool_, metadata_, *host_, *peer_));
                 return connection_result::success;
             }
             else
@@ -273,6 +283,7 @@ responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand
 	strand_(strand),
 	params_(std::move(params)),
 	pool_(0U, params_.window_size),
+	metadata_(params_.window_size),
 	host_(nullptr, [](ENetHost* host) { enet_host_destroy(host); }),
 	peer_map_()
 {
@@ -379,7 +390,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
 		    bdc::endpoint_id&& id{event.peer->address.host, event.peer->address.port};
 		    auto result = peer_map_.emplace(std::move(id), std::make_tuple(
 			    in_connection_t(key(*this), strand_, pool_, *host_, *(event.peer)),
-			    out_connection_t(key(*this), strand_, pool_, *host_, *(event.peer))));
+			    out_connection_t(key(*this), strand_, pool_, metadata_, *host_, *(event.peer))));
 		    handlers.on_connect(std::get<0>(result.first->second));
                     break;
                 }
