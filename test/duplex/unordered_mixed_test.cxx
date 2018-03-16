@@ -992,3 +992,79 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
     master.service.run();
     slave.stop();
 }
+
+TEST(unordered_mixed_test, recycled_buffers)
+{
+    ::responder_master master({0U, 19103U}, {24U, 64U});
+    ::initiator_slave slave({::localhost, 19103U}, {24U, 64U});
+    setupConnection(master, slave);
+    auto iter = master.known_endpoints.begin();
+    std::unordered_set<std::string> reliable_values({"abc", "xyz", "!@#", "*()"});
+    auto reliable_iter = reliable_values.begin();
+    std::unordered_set<uint32_t> unreliable_values({123U, 456U, 789U, 0U});
+    auto unreliable_iter = unreliable_values.begin();
+    std::size_t unreliable_count = 0;
+    std::size_t unreliable_sent = 0;
+    std::size_t reliable_count = 0;
+    std::size_t reliable_sent = 0;
+    std::size_t reliable_target = reliable_values.size();
+    ::responder_master::in_connection_type::event_handlers handlers
+    {
+	[&](const ::responder_master::in_connection_type::event_handlers& current)
+	{
+	    if (reliable_iter != reliable_values.end() && reliable_sent <= reliable_count)
+	    {
+		bme::capnproto<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+		bdu::ReliableMsg::Builder builder = message.build();
+		builder.setValue(*reliable_iter);
+		slave.send_reliable(message);
+		++reliable_sent;
+	    }
+	    if (unreliable_iter != unreliable_values.end() && unreliable_sent <= unreliable_count)
+	    {
+		bme::capnproto<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bdu::UnreliableMsg::Builder builder = message.build();
+		builder.setValue(*unreliable_iter);
+		slave.send_unreliable(message);
+		++unreliable_sent;
+	    }
+	    master.responder.async_receive(current);
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected connect");
+	},
+	[&](const ::responder_master::in_connection_type&)
+	{
+	    GTEST_FATAL_FAILURE_("Unexpected disconnect");
+	},
+	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
+	{
+	    bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
+	    auto result = unreliable_values.find(deed.read().getValue());
+	    ASSERT_NE(unreliable_values.end(), result) << "Incorrect unreliable message value";
+	    ++unreliable_iter;
+	    ++unreliable_count;
+	    if (unreliable_count == 0 || reliable_count != reliable_target)
+	    {
+		master.responder.async_receive(handlers);
+	    }
+	},
+	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
+	{
+	    bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
+	    auto result = reliable_values.find(deed.read().getValue());
+	    ASSERT_NE(reliable_values.end(), result) << "Incorrect reliable message value";
+	    ++reliable_iter;
+	    ++reliable_count;
+	    if (unreliable_count == 0 || reliable_count != reliable_target)
+	    {
+		master.responder.async_receive(handlers);
+	    }
+	}
+    };
+    master.responder.async_receive(handlers);
+    master.service.run();
+    master.service.reset();
+    slave.stop();
+}
