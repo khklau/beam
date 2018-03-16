@@ -125,16 +125,16 @@ uint32_t sender<unreliable_msg_t, reliable_msg_t>::get_packet_flags(channel_id::
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
-	beam::message::buffer& message)
+	beam::message::payload<unreliable_msg_t>& message)
 {
-    return send(message, channel_id::unreliable);
+    return send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
-	beam::message::buffer& message)
+	beam::message::payload<reliable_msg_t>& message)
 {
-    return send(message, channel_id::reliable);
+    return send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::reliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>

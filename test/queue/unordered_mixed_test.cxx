@@ -36,8 +36,8 @@ public:
     void send_unreliable(bme::capnproto<bqu::UnreliableMsg>& message);
     void send_reliable(bme::capnproto<bqu::ReliableMsg>& message);
 private:
-    typedef turbo::container::spsc_ring_queue<bme::unique_pool_ptr> unreliable_queue_type;
-    typedef turbo::container::spsc_ring_queue<bme::unique_pool_ptr> reliable_queue_type;
+    typedef turbo::container::spsc_ring_queue<bme::payload<bqu::UnreliableMsg>> unreliable_queue_type;
+    typedef turbo::container::spsc_ring_queue<bme::payload<bqu::ReliableMsg>> reliable_queue_type;
     sender_slave(const sender_slave& other) = delete;
     sender_slave& operator=(const sender_slave& other) = delete;
     void run();
@@ -118,18 +118,16 @@ void sender_slave::stop()
 
 void sender_slave::send_unreliable(bme::capnproto<bqu::UnreliableMsg>& message)
 {
-    bme::unique_pool_ptr buffer = pool_.borrow();
-    *buffer = std::move(message.serialise());
-    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_producer_.try_enqueue_move(std::move(buffer)))
+    bme::payload<bqu::UnreliableMsg> payload(std::move(bme::serialise(pool_, message)));
+    ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_producer_.try_enqueue_move(std::move(payload)))
 	    << "Unreliable message enqueue failed";
     service_.post(std::bind(&sender_slave::on_send_unreliable, this));
 }
 
 void sender_slave::send_reliable(bme::capnproto<bqu::ReliableMsg>& message)
 {
-    bme::unique_pool_ptr buffer = pool_.borrow();
-    *buffer = std::move(message.serialise());
-    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_producer_.try_enqueue_move(std::move(buffer)))
+    bme::payload<bqu::ReliableMsg> payload(std::move(bme::serialise(pool_, message)));
+    ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_producer_.try_enqueue_move(std::move(payload)))
 	    << "Reliable message enqueue failed";
     service_.post(std::bind(&sender_slave::on_send_reliable, this));
 }
@@ -151,18 +149,18 @@ void sender_slave::brake()
 
 void sender_slave::on_send_unreliable()
 {
-    bme::unique_pool_ptr message;
+    bme::payload<bqu::UnreliableMsg> message;
     ASSERT_EQ(unreliable_queue_type::consumer::result::success, unreliable_consumer_.try_dequeue_move(message))
 	    << "Unreliable message dequeue failed";
-    sender_.send_unreliable(*message);
+    sender_.send_unreliable(message);
 }
 
 void sender_slave::on_send_reliable()
 {
-    bme::unique_pool_ptr message;
+    bme::payload<bqu::ReliableMsg> message;
     ASSERT_EQ(reliable_queue_type::consumer::result::success, reliable_consumer_.try_dequeue_move(message))
 	    << "Reliable message dequeue failed";
-    sender_.send_reliable(*message);
+    sender_.send_reliable(message);
 }
 
 void sender_slave::on_disconnect(const bii4::address&, const beam::queue::common::port&)

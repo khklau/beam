@@ -80,8 +80,8 @@ public:
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
-    send_result send_reliable(beam::message::buffer& message);
-    send_result send_unreliable(beam::message::buffer& message);
+    send_result send_reliable(beam::message::payload<reliable_msg_t>& message);
+    send_result send_unreliable(beam::message::payload<unreliable_msg_t>& message);
 private:
     struct delivery_metadata
     {
