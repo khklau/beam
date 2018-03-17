@@ -63,8 +63,7 @@ class TURBO_SYMBOL_DECL capnproto_form
 public:
     typedef message_t message_type;
     explicit capnproto_form(unique_pool_ptr&& buffer);
-    explicit capnproto_form(payload<message_t>&& source);
-    capnproto_form(kj::ArrayPtr<capnp::word> source, unique_pool_ptr&& buffer);
+    capnproto_form(const capnproto_deed<message_t>& source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
