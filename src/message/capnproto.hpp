@@ -58,13 +58,13 @@ private:
 };
 
 template <class message_t>
-class TURBO_SYMBOL_DECL capnproto
+class TURBO_SYMBOL_DECL capnproto_form
 {
 public:
     typedef message_t message_type;
-    explicit capnproto(unique_pool_ptr&& buffer);
-    explicit capnproto(payload<message_t>&& source);
-    capnproto(kj::ArrayPtr<capnp::word> source, unique_pool_ptr&& buffer);
+    explicit capnproto_form(unique_pool_ptr&& buffer);
+    explicit capnproto_form(payload<message_t>&& source);
+    capnproto_form(kj::ArrayPtr<capnp::word> source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
@@ -84,15 +84,15 @@ public:
     buffer serialise();
     buffer serialise(const key<message_t>&);
 private:
-    capnproto() = delete;
-    capnproto(const capnproto&) = delete;
-    capnproto& operator=(const capnproto&) = delete;
+    capnproto_form() = delete;
+    capnproto_form(const capnproto_form&) = delete;
+    capnproto_form& operator=(const capnproto_form&) = delete;
     unique_pool_ptr buffer_;
     capnp::MallocMessageBuilder builder_;
 };
 
 template <class message_t>
-TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto<message_t>& message);
+TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto_form<message_t>& message);
 
 } // namespace message
 } // namespace beam
