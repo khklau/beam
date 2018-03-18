@@ -377,8 +377,8 @@ TEST(unordered_mixed_test, basic_initiated_unreliable)
 	    },
 	    [&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-		ASSERT_EQ(123U, deed.read().getValue()) << "Incorrect message value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+		ASSERT_EQ(123U, statement.read().getValue()) << "Incorrect message value";
 		++unreliable_count;
 	    },
 	    [&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&&)
@@ -423,8 +423,8 @@ TEST(unordered_mixed_test, basic_initiated_reliable)
 	    },
 	    [&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-		ASSERT_STREQ("foo", deed.read().getValue().cStr()) << "Incorrect message value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+		ASSERT_STREQ("foo", statement.read().getValue().cStr()) << "Incorrect message value";
 		++reliable_count;
 	    }
 	});
@@ -468,14 +468,14 @@ TEST(unordered_mixed_test, basic_initiated_mixed)
 	    },
 	    [&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-		ASSERT_EQ(999U, deed.read().getValue()) << "Incorrect unreliable message value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+		ASSERT_EQ(999U, statement.read().getValue()) << "Incorrect unreliable message value";
 		++unreliable_count;
 	    },
 	    [&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-		ASSERT_STREQ("bar", deed.read().getValue().cStr()) << "Incorrect reliable message value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+		ASSERT_STREQ("bar", statement.read().getValue().cStr()) << "Incorrect reliable message value";
 		++reliable_count;
 	    }
 	});
@@ -502,8 +502,8 @@ TEST(unordered_mixed_test, basic_responded_unreliable)
 	    bme::payload<bdu::UnreliableMsg> payload;
 	    if (slave.try_receive_unreliable(payload) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-		ASSERT_EQ(123U, deed.read().getValue()) << "Incorrect unreliable message value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+		ASSERT_EQ(123U, statement.read().getValue()) << "Incorrect unreliable message value";
 	    }
 	    else
 	    {
@@ -548,8 +548,8 @@ TEST(unordered_mixed_test, basic_responded_reliable)
 	    bme::payload<bdu::ReliableMsg> payload;
 	    if (slave.try_receive_reliable(payload) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-		ASSERT_STREQ("abcxyz", deed.read().getValue().cStr()) << "Incorrect reliable message value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+		ASSERT_STREQ("abcxyz", statement.read().getValue().cStr()) << "Incorrect reliable message value";
 	    }
 	    else
 	    {
@@ -600,15 +600,15 @@ TEST(unordered_mixed_test, basic_responded_mixed)
 	    bme::payload<bdu::UnreliableMsg> payload1;
 	    if (slave.try_receive_unreliable(payload1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed1(std::move(payload1));
-		ASSERT_EQ(123U, deed1.read().getValue()) << "Incorrect unreliable message value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement1(std::move(payload1));
+		ASSERT_EQ(123U, statement1.read().getValue()) << "Incorrect unreliable message value";
 		++unreliable_count;
 	    }
 	    bme::payload<bdu::ReliableMsg> payload2;
 	    if (slave.try_receive_reliable(payload2) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed2(std::move(payload2));
-		ASSERT_STREQ("abcxyz", deed2.read().getValue().cStr()) << "Incorrect reliable message value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement2(std::move(payload2));
+		ASSERT_STREQ("abcxyz", statement2.read().getValue().cStr()) << "Incorrect reliable message value";
 		++reliable_count;
 	    }
 	    if (unreliable_count == 0U || reliable_count == 0U)
@@ -649,8 +649,8 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 	    bme::payload<bdu::UnreliableMsg> payload1;
 	    if (slave.try_receive_unreliable(payload1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed1(std::move(payload1));
-		ASSERT_EQ(476U, deed1.read().getValue()) << "Incorrect unreliable message reply value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement1(std::move(payload1));
+		ASSERT_EQ(476U, statement1.read().getValue()) << "Incorrect unreliable message reply value";
 	    }
 	    else
 	    {
@@ -671,7 +671,7 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::UnreliableMsg> request(std::move(payload));
+	    bme::capnproto_statement<bdu::UnreliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
 	    bme::capnproto_form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
 	    bdu::UnreliableMsg::Builder builder = reply.build();
@@ -701,8 +701,8 @@ TEST(unordered_mixed_test, request_reply_initiated_reliable)
 	    bme::payload<bdu::ReliableMsg> payload1;
 	    if (slave.try_receive_reliable(payload1) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed1(std::move(payload1));
-		ASSERT_STREQ("testing", deed1.read().getValue().cStr()) << "Incorrect reliable message reply value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement1(std::move(payload1));
+		ASSERT_STREQ("testing", statement1.read().getValue().cStr()) << "Incorrect reliable message reply value";
 	    }
 	    else
 	    {
@@ -727,7 +727,7 @@ TEST(unordered_mixed_test, request_reply_initiated_reliable)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::ReliableMsg> request(std::move(payload));
+	    bme::capnproto_statement<bdu::ReliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
 	    bme::capnproto_form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
 	    bdu::ReliableMsg::Builder builder = reply.build();
@@ -757,8 +757,8 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	    bme::payload<bdu::ReliableMsg> payload1;
 	    if (slave.try_receive_reliable(payload1) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> deed1(std::move(payload1));
-		ASSERT_STREQ("testing", deed1.read().getValue().cStr()) << "Incorrect reliable message reply value";
+		bme::capnproto_statement<bdu::ReliableMsg> statement1(std::move(payload1));
+		ASSERT_STREQ("testing", statement1.read().getValue().cStr()) << "Incorrect reliable message reply value";
 		++reliable_count;
 	    }
 	    else if (reliable_attempt == 0U)
@@ -772,8 +772,8 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	    bme::payload<bdu::UnreliableMsg> payload2;
 	    if (slave.try_receive_unreliable(payload2) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> deed2(std::move(payload2));
-		ASSERT_EQ(476U, deed2.read().getValue()) << "Incorrect unreliable message reply value";
+		bme::capnproto_statement<bdu::UnreliableMsg> statement2(std::move(payload2));
+		ASSERT_EQ(476U, statement2.read().getValue()) << "Incorrect unreliable message reply value";
 		++unreliable_count;
 	    }
 	    else
@@ -798,7 +798,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::UnreliableMsg> request(std::move(payload));
+	    bme::capnproto_statement<bdu::UnreliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
 	    bme::capnproto_form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
 	    bdu::UnreliableMsg::Builder builder = reply.build();
@@ -808,7 +808,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::ReliableMsg> request(std::move(payload));
+	    bme::capnproto_statement<bdu::ReliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
 	    bme::capnproto_form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
 	    bdu::ReliableMsg::Builder builder = reply.build();
@@ -840,7 +840,7 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 	    bme::payload<bdu::UnreliableMsg> payload;
 	    if (slave.try_receive_unreliable(payload) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> request(std::move(payload));
+		bme::capnproto_statement<bdu::UnreliableMsg> request(std::move(payload));
 		bme::capnproto_form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
 		bdu::UnreliableMsg::Builder builder = reply.build();
 		builder.setValue(request.read().getValue() + 10U);
@@ -858,8 +858,8 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-	    ASSERT_EQ(799U, deed.read().getValue()) << "Incorrect unreliable message value";
+	    bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+	    ASSERT_EQ(799U, statement.read().getValue()) << "Incorrect unreliable message value";
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&&)
 	{
@@ -887,7 +887,7 @@ TEST(unordered_mixed_test, request_reply_responded_reliable)
 	    bme::payload<bdu::ReliableMsg> payload;
 	    if (slave.try_receive_reliable(payload) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> request(std::move(payload));
+		bme::capnproto_statement<bdu::ReliableMsg> request(std::move(payload));
 		bme::capnproto_form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
 		bdu::ReliableMsg::Builder builder = reply.build();
 		std::string tmp("pre-");
@@ -910,8 +910,8 @@ TEST(unordered_mixed_test, request_reply_responded_reliable)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-	    ASSERT_STREQ("pre-compute", deed.read().getValue().cStr()) << "Incorrect reliable message value";
+	    bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+	    ASSERT_STREQ("pre-compute", statement.read().getValue().cStr()) << "Incorrect reliable message value";
 	}
     });
     master.service.run();
@@ -941,7 +941,7 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	    bme::payload<bdu::UnreliableMsg> payload1;
 	    if (slave.try_receive_unreliable(payload1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::UnreliableMsg> request1(std::move(payload1));
+		bme::capnproto_statement<bdu::UnreliableMsg> request1(std::move(payload1));
 		bme::capnproto_form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
 		bdu::UnreliableMsg::Builder builder = reply.build();
 		builder.setValue(request1.read().getValue() + 10U);
@@ -950,7 +950,7 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	    bme::payload<bdu::ReliableMsg> payload2;
 	    if (slave.try_receive_reliable(payload2) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
-		bme::capnproto_deed<bdu::ReliableMsg> request2(std::move(payload2));
+		bme::capnproto_statement<bdu::ReliableMsg> request2(std::move(payload2));
 		bme::capnproto_form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
 		bdu::ReliableMsg::Builder builder = reply.build();
 		std::string tmp("pre-");
@@ -969,8 +969,8 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-	    ASSERT_EQ(799U, deed.read().getValue()) << "Incorrect unreliable message value";
+	    bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+	    ASSERT_EQ(799U, statement.read().getValue()) << "Incorrect unreliable message value";
 	    ++unreliable_count;
 	    if (unreliable_count == 0U || reliable_count == 0U)
 	    {
@@ -979,8 +979,8 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-	    ASSERT_STREQ("pre-compute", deed.read().getValue().cStr()) << "Incorrect reliable message value";
+	    bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+	    ASSERT_STREQ("pre-compute", statement.read().getValue().cStr()) << "Incorrect reliable message value";
 	    ++reliable_count;
 	    if (unreliable_count == 0U || reliable_count == 0U)
 	    {
@@ -1040,8 +1040,8 @@ TEST(unordered_mixed_test, recycled_buffers)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::UnreliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::UnreliableMsg> deed(std::move(payload));
-	    auto result = unreliable_values.find(deed.read().getValue());
+	    bme::capnproto_statement<bdu::UnreliableMsg> statement(std::move(payload));
+	    auto result = unreliable_values.find(statement.read().getValue());
 	    ASSERT_NE(unreliable_values.end(), result) << "Incorrect unreliable message value";
 	    ++unreliable_iter;
 	    ++unreliable_count;
@@ -1052,8 +1052,8 @@ TEST(unordered_mixed_test, recycled_buffers)
 	},
 	[&](const ::responder_master::in_connection_type&, bme::payload<bdu::ReliableMsg>&& payload)
 	{
-	    bme::capnproto_deed<bdu::ReliableMsg> deed(std::move(payload));
-	    auto result = reliable_values.find(deed.read().getValue());
+	    bme::capnproto_statement<bdu::ReliableMsg> statement(std::move(payload));
+	    auto result = reliable_values.find(statement.read().getValue());
 	    ASSERT_NE(reliable_values.end(), result) << "Incorrect reliable message value";
 	    ++reliable_iter;
 	    ++reliable_count;

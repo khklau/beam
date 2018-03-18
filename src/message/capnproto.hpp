@@ -40,19 +40,19 @@ private:
 };
 
 template <class message_t>
-class TURBO_SYMBOL_DECL capnproto_deed
+class TURBO_SYMBOL_DECL capnproto_statement
 {
 public:
     typedef message_t message_type;
-    explicit capnproto_deed(payload<message_t>&& source);
+    explicit capnproto_statement(payload<message_t>&& source);
     inline typename message_type::Reader read()
     {
 	return reader_.getRoot<message_type>();
     }
 private:
-    capnproto_deed() = delete;
-    capnproto_deed(const capnproto_deed&) = delete;
-    capnproto_deed& operator=(const capnproto_deed&) = delete;
+    capnproto_statement() = delete;
+    capnproto_statement(const capnproto_statement&) = delete;
+    capnproto_statement& operator=(const capnproto_statement&) = delete;
     unique_pool_ptr buffer_;
     capnp::FlatArrayMessageReader reader_;
 };
@@ -63,7 +63,7 @@ class TURBO_SYMBOL_DECL capnproto_form
 public:
     typedef message_t message_type;
     explicit capnproto_form(unique_pool_ptr&& buffer);
-    capnproto_form(const capnproto_deed<message_t>& source, unique_pool_ptr&& buffer);
+    capnproto_form(const capnproto_statement<message_t>& source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();

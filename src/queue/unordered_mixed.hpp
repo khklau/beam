@@ -131,8 +131,8 @@ public:
 	std::function<void(const event_handlers& current)> on_timeout;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_connect;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
-	std::function<void(beam::message::capnproto_deed<unreliable_msg_t>& message)> on_receive_unreliable_msg;
-	std::function<void(beam::message::capnproto_deed<reliable_msg_t>& message)> on_receive_reliable_msg;
+	std::function<void(beam::message::capnproto_statement<unreliable_msg_t>& message)> on_receive_unreliable_msg;
+	std::function<void(beam::message::capnproto_statement<reliable_msg_t>& message)> on_receive_reliable_msg;
     };
     struct perf_params
     {

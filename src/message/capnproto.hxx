@@ -18,7 +18,7 @@ class key
 };
 
 template <class message_t>
-capnproto_deed<message_t>::capnproto_deed(payload<message_t>&& source)
+capnproto_statement<message_t>::capnproto_statement(payload<message_t>&& source)
     :
 	buffer_(std::move(static_cast<unique_pool_ptr>(source))),
 	reader_(buffer_->asPtr())
@@ -32,7 +32,7 @@ capnproto_form<message_t>::capnproto_form(unique_pool_ptr&& buffer)
 { }
 
 template <class message_t>
-capnproto_form<message_t>::capnproto_form(const capnproto_deed<message_t>& source, unique_pool_ptr&& buffer)
+capnproto_form<message_t>::capnproto_form(const capnproto_statement<message_t>& source, unique_pool_ptr&& buffer)
     :
 	capnproto_form(std::move(buffer))
 {
