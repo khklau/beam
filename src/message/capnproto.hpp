@@ -41,30 +41,30 @@ private:
 };
 
 template <class message_t>
-class TURBO_SYMBOL_DECL capnproto_statement
+class TURBO_SYMBOL_DECL statement
 {
 public:
     typedef message_t message_type;
-    explicit capnproto_statement(payload<message_t>&& source);
+    explicit statement(payload<message_t>&& source);
     inline typename message_type::Reader read()
     {
 	return reader_.getRoot<message_type>();
     }
 private:
-    capnproto_statement() = delete;
-    capnproto_statement(const capnproto_statement&) = delete;
-    capnproto_statement& operator=(const capnproto_statement&) = delete;
+    statement() = delete;
+    statement(const statement&) = delete;
+    statement& operator=(const statement&) = delete;
     unique_pool_ptr buffer_;
     capnp::FlatArrayMessageReader reader_;
 };
 
 template <class message_t>
-class TURBO_SYMBOL_DECL capnproto_form
+class TURBO_SYMBOL_DECL form
 {
 public:
     typedef message_t message_type;
-    explicit capnproto_form(unique_pool_ptr&& buffer);
-    capnproto_form(const capnproto_statement<message_t>& source, unique_pool_ptr&& buffer);
+    explicit form(unique_pool_ptr&& buffer);
+    form(const statement<message_t>& source, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
@@ -84,15 +84,15 @@ public:
     buffer serialise();
     buffer serialise(const key<message_t>&);
 private:
-    capnproto_form() = delete;
-    capnproto_form(const capnproto_form&) = delete;
-    capnproto_form& operator=(const capnproto_form&) = delete;
+    form() = delete;
+    form(const form&) = delete;
+    form& operator=(const form&) = delete;
     unique_pool_ptr buffer_;
     capnp::MallocMessageBuilder builder_;
 };
 
 template <class message_t>
-TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto_form<message_t>& message);
+TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, form<message_t>& message);
 
 } // namespace capnproto
 } // namespace message

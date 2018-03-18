@@ -320,13 +320,13 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 		    if (event.channelID == channel_id::unreliable)
 		    {
 			bmc::payload<unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-			bmc::capnproto_statement<unreliable_msg_type> message(std::move(payload));
+			bmc::statement<unreliable_msg_type> message(std::move(payload));
 			handlers.on_receive_unreliable_msg(message);
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
 			bmc::payload<reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-			bmc::capnproto_statement<reliable_msg_type> message(std::move(payload));
+			bmc::statement<reliable_msg_type> message(std::move(payload));
 			handlers.on_receive_reliable_msg(message);
 		    }
 		    enet_packet_destroy(event.packet);
