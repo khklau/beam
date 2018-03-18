@@ -80,8 +80,8 @@ public:
     inline bool is_connected() const { return peer_ != nullptr; }
     connection_result connect(std::vector<beam::internet::ipv4::address>&& receive_candidates, beam::queue::common::port port);
     disconnection_result disconnect();
-    send_result send_reliable(beam::message::payload<reliable_msg_t>& message);
-    send_result send_unreliable(beam::message::payload<unreliable_msg_t>& message);
+    send_result send_reliable(beam::message::capnproto::payload<reliable_msg_t>& message);
+    send_result send_unreliable(beam::message::capnproto::payload<unreliable_msg_t>& message);
 private:
     struct delivery_metadata
     {
@@ -131,8 +131,8 @@ public:
 	std::function<void(const event_handlers& current)> on_timeout;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_connect;
 	std::function<void(const beam::internet::ipv4::address&, const beam::queue::common::port&)> on_disconnect;
-	std::function<void(beam::message::capnproto_statement<unreliable_msg_t>& message)> on_receive_unreliable_msg;
-	std::function<void(beam::message::capnproto_statement<reliable_msg_t>& message)> on_receive_reliable_msg;
+	std::function<void(beam::message::capnproto::capnproto_statement<unreliable_msg_t>& message)> on_receive_unreliable_msg;
+	std::function<void(beam::message::capnproto::capnproto_statement<reliable_msg_t>& message)> on_receive_reliable_msg;
     };
     struct perf_params
     {

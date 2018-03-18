@@ -40,8 +40,8 @@ public:
         std::function<void(const event_handlers& current)> on_timeout;
         std::function<void(const in_connection& connection)> on_connect;
         std::function<void(const in_connection& connection)> on_disconnect;
-        std::function<void(const in_connection& connection, beam::message::payload<unreliable_msg_t>&& payload)> on_receive_unreliable_msg;
-        std::function<void(const in_connection& connection, beam::message::payload<reliable_msg_t>&& payload)> on_receive_reliable_msg;
+        std::function<void(const in_connection& connection, beam::message::capnproto::payload<unreliable_msg_t>&& payload)> on_receive_unreliable_msg;
+        std::function<void(const in_connection& connection, beam::message::capnproto::payload<reliable_msg_t>&& payload)> on_receive_reliable_msg;
     };
     in_connection(const key&, asio::io_service::strand& strand, beam::message::buffer_pool& pool, ENetHost& host, ENetPeer& peer);
     beam::duplex::common::endpoint_id get_endpoint_id() const;
@@ -79,8 +79,8 @@ public:
 	    metadata_map_type& metadata,
 	    ENetHost& host,
 	    ENetPeer& peer);
-    void send_unreliable(beam::message::payload<unreliable_msg_t>& message);
-    void send_reliable(beam::message::payload<reliable_msg_t>& message);
+    void send_unreliable(beam::message::capnproto::payload<unreliable_msg_t>& message);
+    void send_reliable(beam::message::capnproto::payload<reliable_msg_t>& message);
 private:
     out_connection() = delete;
     static uint32_t get_packet_flags(channel_id::type channel);

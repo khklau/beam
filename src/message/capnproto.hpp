@@ -12,6 +12,7 @@
 
 namespace beam {
 namespace message {
+namespace capnproto {
 
 template <class message_t>
 class TURBO_SYMBOL_DECL key;
@@ -93,6 +94,7 @@ private:
 template <class message_t>
 TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, capnproto_form<message_t>& message);
 
+} // namespace capnproto
 } // namespace message
 } // namespace beam
 

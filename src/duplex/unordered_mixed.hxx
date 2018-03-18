@@ -13,7 +13,7 @@ namespace unordered_mixed {
 
 namespace bdc = beam::duplex::common;
 namespace bii4 = beam::internet::ipv4;
-namespace bme = beam::message;
+namespace bmc = beam::message::capnproto;
 
 struct key
 {
@@ -88,13 +88,13 @@ void out_connection<unreliable_msg_t, reliable_msg_t>::return_message(ENetPacket
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void out_connection<unreliable_msg_t, reliable_msg_t>::send_unreliable(beam::message::payload<unreliable_msg_t>& message)
+void out_connection<unreliable_msg_t, reliable_msg_t>::send_unreliable(bmc::payload<unreliable_msg_t>& message)
 {
     send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-void out_connection<unreliable_msg_t, reliable_msg_t>::send_reliable(beam::message::payload<reliable_msg_t>& message)
+void out_connection<unreliable_msg_t, reliable_msg_t>::send_reliable(bmc::payload<reliable_msg_t>& message)
 {
     send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::reliable);
 }
@@ -256,12 +256,12 @@ void initiator<in_connection_t, out_connection_t>::exec_receive(const typename i
                             event.packet->dataLength / sizeof(capnp::word));
                     if (event.channelID == channel_id::unreliable)
                     {
-			bme::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
                         handlers.on_receive_unreliable_msg(in, std::move(payload));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
-			bme::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
                         handlers.on_receive_reliable_msg(in, std::move(payload));
                     }
                     enet_packet_destroy(event.packet);
@@ -407,12 +407,12 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                             event.packet->dataLength / sizeof(capnp::word));
                     if (event.channelID == channel_id::unreliable)
                     {
-			bme::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
                         handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(payload));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
-			bme::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
                         handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(payload));
                     }
                     enet_packet_destroy(event.packet);

@@ -14,7 +14,7 @@ namespace queue {
 namespace unordered_mixed {
 
 namespace bii4 = beam::internet::ipv4;
-namespace bme = beam::message;
+namespace bmc = beam::message::capnproto;
 namespace bqc = beam::queue::common;
 
 template <class unreliable_msg_t, class reliable_msg_t>
@@ -125,14 +125,14 @@ uint32_t sender<unreliable_msg_t, reliable_msg_t>::get_packet_flags(channel_id::
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_unreliable(
-	beam::message::payload<unreliable_msg_t>& message)
+	bmc::payload<unreliable_msg_t>& message)
 {
     return send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::unreliable);
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
 typename sender<unreliable_msg_t, reliable_msg_t>::send_result sender<unreliable_msg_t, reliable_msg_t>::send_reliable(
-	beam::message::payload<reliable_msg_t>& message)
+	bmc::payload<reliable_msg_t>& message)
 {
     return send(*(static_cast<beam::message::unique_pool_ptr>(message)), channel_id::reliable);
 }
@@ -319,14 +319,14 @@ void receiver<unreliable_msg_t, reliable_msg_t>::check_events(const event_handle
 			    event.packet->dataLength / sizeof(capnp::word));
 		    if (event.channelID == channel_id::unreliable)
 		    {
-			bme::payload<unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-			bme::capnproto_statement<unreliable_msg_type> message(std::move(payload));
+			bmc::payload<unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::capnproto_statement<unreliable_msg_type> message(std::move(payload));
 			handlers.on_receive_unreliable_msg(message);
 		    }
 		    else if (event.channelID == channel_id::reliable)
 		    {
-			bme::payload<reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-			bme::capnproto_statement<reliable_msg_type> message(std::move(payload));
+			bmc::payload<reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::capnproto_statement<reliable_msg_type> message(std::move(payload));
 			handlers.on_receive_reliable_msg(message);
 		    }
 		    enet_packet_destroy(event.packet);

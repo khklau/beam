@@ -10,6 +10,7 @@
 
 namespace beam {
 namespace message {
+namespace capnproto {
 
 template <class message_t>
 class key
@@ -61,6 +62,7 @@ payload<message_t> serialise(buffer_pool& pool, capnproto_form<message_t>& messa
     return std::move(result);
 }
 
+} // namespace capnproto
 } // namespace message
 } // namespace beam
 
