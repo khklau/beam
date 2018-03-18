@@ -999,7 +999,6 @@ TEST(unordered_mixed_test, recycled_buffers)
     ::responder_master master({0U, 19103U}, {24U, 64U});
     ::initiator_slave slave({::localhost, 19103U}, {24U, 64U});
     setupConnection(master, slave);
-    auto iter = master.known_endpoints.begin();
     std::unordered_set<std::string> reliable_values({"abc", "xyz", "!@#", "*()"});
     auto reliable_iter = reliable_values.begin();
     std::unordered_set<uint32_t> unreliable_values({123U, 456U, 789U, 0U});
