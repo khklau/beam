@@ -3,6 +3,7 @@
 
 #include <utility>
 #include <beam/message/buffer.hpp>
+#include <beam/message/buffer_pool.hpp>
 #include <capnp/common.h>
 #include <capnp/message.h>
 #include <capnp/serialize.h>
