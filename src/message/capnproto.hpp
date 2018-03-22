@@ -95,13 +95,16 @@ private:
 };
 
 template <class message_t>
+using streamed_statement = statement<message_t, capnp::StreamFdMessageReader>;
+
+template <class message_t>
 TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, form<message_t>& message);
 
 template <class message_t>
 TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload);
 
 template <class message_t>
-TURBO_SYMBOL_DECL statement<message_t, capnp::StreamFdMessageReader> read(int fd, std::size_t expected_word_length, buffer_pool& pool);
+TURBO_SYMBOL_DECL streamed_statement<message_t> read(int fd, std::size_t expected_word_length, buffer_pool& pool);
 
 } // namespace capnproto
 } // namespace message

@@ -86,7 +86,7 @@ TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload)
 }
 
 template <class message_t>
-statement<message_t, capnp::StreamFdMessageReader> read(int fd, std::size_t expected_word_length, buffer_pool& pool)
+streamed_statement<message_t> read(int fd, std::size_t expected_word_length, buffer_pool& pool)
 {
     unique_pool_ptr ptr = std::move(pool.borrow(expected_word_length));
     capnp::StreamFdMessageReader reader(fd, capnp::ReaderOptions(), ptr->asPtr());
