@@ -62,6 +62,22 @@ payload<message_t> serialise(buffer_pool& pool, form<message_t>& message)
     return std::move(result);
 }
 
+template <class message_t>
+TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload)
+{
+    // FIXME: use the kj::ExceptionCallback instead once we figure out how to register it!
+    const kj::ArrayPtr<const typename capnp::word> ptr(static_cast<beam::message::unique_pool_ptr>(payload)->asPtr());
+    try
+    {
+	capnp::writeMessageToFd(fd, kj::arrayPtr(&ptr, 1U));
+    }
+    catch (kj::Exception& ex)
+    {
+	// FIXME: retry for recoverable errors, but kj::FdOutputStream::write doesn't report the errno from the syscall
+	//        so we can't tell if the error is recoverable; ignore errors for now
+    }
+}
+
 } // namespace capnproto
 } // namespace message
 } // namespace beam

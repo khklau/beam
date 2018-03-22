@@ -95,6 +95,9 @@ private:
 template <class message_t>
 TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, form<message_t>& message);
 
+template <class message_t>
+TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload);
+
 } // namespace capnproto
 } // namespace message
 } // namespace beam
