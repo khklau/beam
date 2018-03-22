@@ -41,22 +41,24 @@ private:
     unique_pool_ptr buffer_;
 };
 
-template <class message_t>
+template <class message_t, class reader_t = capnp::FlatArrayMessageReader>
 class TURBO_SYMBOL_DECL statement
 {
 public:
     typedef message_t message_type;
+    typedef reader_t reader_type;
     explicit statement(payload<message_t>&& source);
+    statement(reader_type&& reader, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
-	return reader_.getRoot<message_type>();
+	return reader_.template getRoot<message_type>();
     }
 private:
     statement() = delete;
     statement(const statement&) = delete;
     statement& operator=(const statement&) = delete;
     unique_pool_ptr buffer_;
-    capnp::FlatArrayMessageReader reader_;
+    reader_type reader_;
 };
 
 template <class message_t>
@@ -97,6 +99,9 @@ TURBO_SYMBOL_DECL payload<message_t> serialise(buffer_pool& pool, form<message_t
 
 template <class message_t>
 TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload);
+
+template <class message_t>
+TURBO_SYMBOL_DECL statement<message_t, capnp::StreamFdMessageReader> read(int fd, std::size_t expected_word_length, buffer_pool& pool);
 
 } // namespace capnproto
 } // namespace message

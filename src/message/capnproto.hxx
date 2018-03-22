@@ -18,11 +18,18 @@ class key
     friend payload<message_t> serialise<message_t>(buffer_pool& pool, form<message_t>& message);
 };
 
-template <class message_t>
-statement<message_t>::statement(payload<message_t>&& source)
+template <class message_t, class reader_t>
+statement<message_t, reader_t>::statement(payload<message_t>&& source)
     :
 	buffer_(std::move(static_cast<unique_pool_ptr>(source))),
 	reader_(buffer_->asPtr())
+{ }
+
+template <class message_t, class reader_t>
+statement<message_t, reader_t>::statement(reader_type&& reader, unique_pool_ptr&& buffer)
+    :
+	buffer_(std::move(buffer)),
+	reader_(std::move(reader))
 { }
 
 template <class message_t>
@@ -76,6 +83,15 @@ TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload)
 	// FIXME: retry for recoverable errors, but kj::FdOutputStream::write doesn't report the errno from the syscall
 	//        so we can't tell if the error is recoverable; ignore errors for now
     }
+}
+
+template <class message_t>
+statement<message_t, capnp::StreamFdMessageReader> read(int fd, std::size_t expected_word_length, buffer_pool& pool)
+{
+    unique_pool_ptr ptr = std::move(pool.borrow(expected_word_length));
+    capnp::StreamFdMessageReader reader(fd, capnp::ReaderOptions(), ptr->asPtr());
+    statement<message_t, capnp::StreamFdMessageReader> result(std::move(reader), std::move(ptr));
+    return std::move(result);
 }
 
 } // namespace capnproto
