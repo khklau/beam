@@ -104,7 +104,7 @@ template <class message_t>
 TURBO_SYMBOL_DECL void write(int fd, const payload<message_t>& payload);
 
 template <class message_t>
-TURBO_SYMBOL_DECL streamed_statement<message_t> read(int fd, std::size_t expected_word_length, buffer_pool& pool);
+TURBO_SYMBOL_DECL payload<message_t> read(int fd, std::size_t expected_word_length, buffer_pool& pool);
 
 } // namespace capnproto
 } // namespace message
