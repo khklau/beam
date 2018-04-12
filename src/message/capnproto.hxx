@@ -18,18 +18,11 @@ class key
     friend payload<message_t> serialise<message_t>(buffer_pool& pool, form<message_t>& message);
 };
 
-template <class message_t, class reader_t>
-statement<message_t, reader_t>::statement(payload<message_t>&& source)
+template <class message_t>
+statement<message_t>::statement(payload<message_t>&& source)
     :
 	buffer_(std::move(static_cast<unique_pool_ptr>(source))),
 	reader_(buffer_->asPtr())
-{ }
-
-template <class message_t, class reader_t>
-statement<message_t, reader_t>::statement(reader_type&& reader, unique_pool_ptr&& buffer)
-    :
-	buffer_(std::move(buffer)),
-	reader_(std::move(reader))
 { }
 
 template <class message_t>
