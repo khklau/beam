@@ -19,12 +19,16 @@ template <class message_t>
 class TURBO_SYMBOL_DECL key;
 
 template <class message_t>
+class TURBO_SYMBOL_DECL statement;
+
+template <class message_t>
 class TURBO_SYMBOL_DECL payload
 {
 public:
     typedef message_t message_type;
     inline payload() : buffer_() { };
     inline payload(payload&& other) : buffer_(std::move(other.buffer_)) { };
+    inline payload(statement<message_type>&& other) : buffer_(std::move(static_cast<unique_pool_ptr>(other))) { };
     inline explicit payload(unique_pool_ptr&& buffer) : buffer_(std::move(buffer)) { }
     inline payload& operator=(payload&& other)
     {
@@ -47,6 +51,10 @@ class TURBO_SYMBOL_DECL statement
 public:
     typedef message_t message_type;
     explicit statement(payload<message_t>&& source);
+    inline explicit operator unique_pool_ptr()
+    {
+	return std::move(unique_pool_ptr(std::move(buffer_)));
+    }
     inline typename message_type::Reader read()
     {
 	return reader_.template getRoot<message_type>();
