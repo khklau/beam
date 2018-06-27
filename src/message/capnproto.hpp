@@ -2,6 +2,7 @@
 #define BEAM_MESSAGE_CAPNPROTO_HPP
 
 #include <utility>
+#include <beam/internet/ipv4.hpp>
 #include <beam/message/buffer.hpp>
 #include <beam/message/buffer_pool.hpp>
 #include <capnp/common.h>
@@ -26,23 +27,75 @@ class TURBO_SYMBOL_DECL payload
 {
 public:
     typedef message_t message_type;
-    inline payload() : buffer_() { };
-    inline payload(payload&& other) : buffer_(std::move(other.buffer_)) { };
-    inline payload(statement<message_type>&& other) : buffer_(std::move(static_cast<unique_pool_ptr>(other))) { };
-    inline explicit payload(unique_pool_ptr&& buffer) : buffer_(std::move(buffer)) { }
+    inline payload()
+	:
+	    buffer_(),
+	    destination_(),
+	    source_()
+    { }
+    inline payload(payload&& other)
+	:
+	    buffer_(std::move(other.buffer_)),
+	    destination_(other.destination_),
+	    source_(other.source_)
+    { }
+    inline payload(statement<message_type>&& other)
+	:
+	    buffer_(std::move(static_cast<unique_pool_ptr>(other))),
+	    destination_(),
+	    source_()
+    { }
+    inline payload(statement<message_type>&& other, beam::internet::ipv4::endpoint_id destination)
+	:
+	    buffer_(std::move(static_cast<unique_pool_ptr>(other))),
+	    destination_(destination),
+	    source_()
+    { }
+    inline explicit payload(unique_pool_ptr&& buffer)
+	:
+	    buffer_(std::move(buffer)),
+	    destination_(),
+	    source_()
+    { }
+    inline payload(unique_pool_ptr&& buffer, beam::internet::ipv4::endpoint_id destination)
+	:
+	    buffer_(std::move(buffer)),
+	    destination_(destination),
+	    source_()
+    { }
     inline payload& operator=(payload&& other)
     {
 	buffer_ = std::move(other.buffer_);
+	destination_ = other.destination_;
+	source_ = other.source_;
 	return *this;
     }
     inline explicit operator unique_pool_ptr()
     {
 	return std::move(unique_pool_ptr(std::move(buffer_)));
     }
+    inline beam::internet::ipv4::endpoint_id get_destination() const
+    {
+	return destination_;
+    }
+    inline beam::internet::ipv4::endpoint_id get_source() const
+    {
+	return source_;
+    }
+    inline void set_destination(beam::internet::ipv4::endpoint_id destination)
+    {
+	destination_ = destination;
+    }
+    inline void set_source(beam::internet::ipv4::endpoint_id source)
+    {
+	source_ = source;
+    }
 private:
     payload(const payload&) = delete;
     payload& operator=(const payload&) = delete;
     unique_pool_ptr buffer_;
+    beam::internet::ipv4::endpoint_id destination_;
+    beam::internet::ipv4::endpoint_id source_;
 };
 
 template <class message_t>
