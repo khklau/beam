@@ -31,7 +31,7 @@ public:
     typedef bdu::initiator<in_connection_type, out_connection_type> initiator_type;
     typedef turbo::container::spsc_ring_queue<bmc::payload<bdu::UnreliableMsg>> unreliable_queue_type;
     typedef turbo::container::spsc_ring_queue<bmc::payload<bdu::ReliableMsg>> reliable_queue_type;
-    initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params);
+    initiator_slave(bii4::endpoint_id id, bdu::perf_params&& params);
     ~initiator_slave();
     inline bool is_running() const { return thread_ != nullptr; }
     void start();
@@ -48,7 +48,7 @@ private:
     void brake();
     void on_send_unreliable(out_connection_type& connection);
     void on_send_reliable(out_connection_type& connection);
-    bdc::endpoint_id id_;
+    bii4::endpoint_id id_;
     std::thread* thread_;
     asio::io_service service_;
     asio::io_service::strand strand_;
@@ -69,7 +69,7 @@ private:
     in_connection_type::event_handlers handlers_;
 };
 
-initiator_slave::initiator_slave(bdc::endpoint_id id, bdu::perf_params&& params) :
+initiator_slave::initiator_slave(bii4::endpoint_id id, bdu::perf_params&& params) :
 	id_(id),
 	thread_(nullptr),
 	service_(),
@@ -173,7 +173,7 @@ initiator_slave::reliable_queue_type::consumer::result initiator_slave::try_rece
 
 void initiator_slave::run()
 {
-    ASSERT_EQ(bdu::connection_result::success, initiator_.connect({id_.address}, id_.port)) << "Connection failed";
+    ASSERT_EQ(bdu::connection_result::success, initiator_.connect({id_.get_address()}, id_.get_port())) << "Connection failed";
     initiator_.async_receive(handlers_);
     service_.run();
 }
@@ -209,21 +209,21 @@ public:
     typedef bdu::in_connection<bdu::UnreliableMsg, bdu::ReliableMsg> in_connection_type;
     typedef bdu::out_connection<bdu::UnreliableMsg, bdu::ReliableMsg> out_connection_type;
     typedef bdu::responder<in_connection_type, out_connection_type> responder_type;
-    responder_master(bdc::endpoint_id&& point, bdu::perf_params&& params);
+    responder_master(bii4::endpoint_id&& point, bdu::perf_params&& params);
     ~responder_master();
-    void bind(bdc::endpoint_id&& point);
-    void send_unreliable(const bdc::endpoint_id& point, bmc::form<bdu::UnreliableMsg>& message);
-    void send_reliable(const bdc::endpoint_id& point, bmc::form<bdu::ReliableMsg>& message);
+    void bind(bii4::endpoint_id&& point);
+    void send_unreliable(const bii4::endpoint_id& point, bmc::form<bdu::UnreliableMsg>& message);
+    void send_reliable(const bii4::endpoint_id& point, bmc::form<bdu::ReliableMsg>& message);
     asio::io_service service;
     asio::io_service::strand strand;
     bme::buffer_pool pool;
     responder_type responder;
-    std::unordered_set<bdc::endpoint_id> known_endpoints;
+    std::unordered_set<bii4::endpoint_id> known_endpoints;
 private:
     typedef turbo::container::spsc_ring_queue<bmc::payload<bdu::UnreliableMsg>> unreliable_queue_type;
     typedef turbo::container::spsc_ring_queue<bmc::payload<bdu::ReliableMsg>> reliable_queue_type;
-    void on_send_unreliable(bdc::endpoint_id point, std::function<out_connection_type*(const beam::duplex::common::endpoint_id&)> find);
-    void on_send_reliable(bdc::endpoint_id point, std::function<out_connection_type*(const beam::duplex::common::endpoint_id&)> find);
+    void on_send_unreliable(bii4::endpoint_id point, std::function<out_connection_type*(const beam::internet::ipv4::endpoint_id&)> find);
+    void on_send_reliable(bii4::endpoint_id point, std::function<out_connection_type*(const beam::internet::ipv4::endpoint_id&)> find);
     unreliable_queue_type unreliable_in_queue_;
     reliable_queue_type reliable_in_queue_;
     unreliable_queue_type unreliable_out_queue_;
@@ -238,7 +238,7 @@ private:
     reliable_queue_type::consumer& reliable_out_consumer_;
 };
 
-responder_master::responder_master(bdc::endpoint_id&& point, bdu::perf_params&& params) :
+responder_master::responder_master(bii4::endpoint_id&& point, bdu::perf_params&& params) :
 	service(),
 	strand(service),
 	pool(8U, params.window_size),
@@ -268,12 +268,12 @@ responder_master::~responder_master()
     }
 }
 
-void responder_master::bind(bdc::endpoint_id&& point)
+void responder_master::bind(bii4::endpoint_id&& point)
 {
     ASSERT_EQ(bdu::bind_result::success, responder.bind(point)) << "Bind failed";
 }
 
-void responder_master::send_unreliable(const bdc::endpoint_id& point, bmc::form<bdu::UnreliableMsg>& message)
+void responder_master::send_unreliable(const bii4::endpoint_id& point, bmc::form<bdu::UnreliableMsg>& message)
 {
     bmc::payload<bdu::UnreliableMsg> payload(std::move(bmc::serialise(pool, message)));
     ASSERT_EQ(unreliable_queue_type::producer::result::success, unreliable_in_producer_.try_enqueue_move(std::move(payload)))
@@ -281,7 +281,7 @@ void responder_master::send_unreliable(const bdc::endpoint_id& point, bmc::form<
     responder.async_send(std::bind(&responder_master::on_send_unreliable, this, point, std::placeholders::_1));
 }
 
-void responder_master::send_reliable(const bdc::endpoint_id& point, bmc::form<bdu::ReliableMsg>& message)
+void responder_master::send_reliable(const bii4::endpoint_id& point, bmc::form<bdu::ReliableMsg>& message)
 {
     bmc::payload<bdu::ReliableMsg> payload(std::move(bmc::serialise(pool, message)));
     ASSERT_EQ(reliable_queue_type::producer::result::success, reliable_in_producer_.try_enqueue_move(std::move(payload)))
@@ -289,7 +289,7 @@ void responder_master::send_reliable(const bdc::endpoint_id& point, bmc::form<bd
     responder.async_send(std::bind(&responder_master::on_send_reliable, this, point, std::placeholders::_1));
 }
 
-void responder_master::on_send_unreliable(bdc::endpoint_id point, std::function<out_connection_type*(const beam::duplex::common::endpoint_id&)> find)
+void responder_master::on_send_unreliable(bii4::endpoint_id point, std::function<out_connection_type*(const beam::internet::ipv4::endpoint_id&)> find)
 {
     out_connection_type* connection = find(point);
     if (connection != nullptr)
@@ -301,7 +301,7 @@ void responder_master::on_send_unreliable(bdc::endpoint_id point, std::function<
     }
 }
 
-void responder_master::on_send_reliable(bdc::endpoint_id point, std::function<out_connection_type*(const beam::duplex::common::endpoint_id&)> find)
+void responder_master::on_send_reliable(bii4::endpoint_id point, std::function<out_connection_type*(const beam::internet::ipv4::endpoint_id&)> find)
 {
     out_connection_type* connection = find(point);
     if (connection != nullptr)

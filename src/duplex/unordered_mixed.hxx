@@ -40,7 +40,7 @@ in_connection<unreliable_msg_t, reliable_msg_t>::in_connection(
 { }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-beam::duplex::common::endpoint_id in_connection<unreliable_msg_t, reliable_msg_t>::get_endpoint_id() const
+beam::internet::ipv4::endpoint_id in_connection<unreliable_msg_t, reliable_msg_t>::get_endpoint_id() const
 {
     return { peer_.address.host, peer_.address.port };
 }
@@ -291,13 +291,13 @@ responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand
 }
 
 template <class in_connection_t, class out_connection_t>
-bind_result responder<in_connection_t, out_connection_t>::bind(const beam::duplex::common::endpoint_id& id)
+bind_result responder<in_connection_t, out_connection_t>::bind(const beam::internet::ipv4::endpoint_id& id)
 {
     if (is_bound())
     {
 	return bind_result::already_bound;
     }
-    ENetAddress address{id.address, id.port};
+    ENetAddress address{id.get_address(), id.get_port()};
     ENetHost* host = enet_host_create(&address, params_.max_connections, 2, params_.download_bytes_per_sec, params_.upload_bytes_per_sec);
     if (host == nullptr)
     {
@@ -317,7 +317,7 @@ void responder<in_connection_t, out_connection_t>::unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::async_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback)
+void responder<in_connection_t, out_connection_t>::async_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback)
 {
     strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, callback));
 }
@@ -335,13 +335,13 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::exec_send(std::function<void(std::function<out_connection_t*(const beam::duplex::common::endpoint_id&)>)> callback)
+void responder<in_connection_t, out_connection_t>::exec_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback)
 {
     if (TURBO_UNLIKELY(!host_))
     {
 	return;
     }
-    callback([&](const beam::duplex::common::endpoint_id& endpoint)
+    callback([&](const beam::internet::ipv4::endpoint_id& endpoint)
     {
 	auto iter = peer_map_.find(endpoint);
 	if (iter != peer_map_.end())
@@ -376,7 +376,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
             {
                 case ENET_EVENT_TYPE_DISCONNECT:
                 {
-		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
+		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto iter = peer_map_.find(id);
 		    if (iter != peer_map_.end())
 		    {
@@ -387,7 +387,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_CONNECT:
                 {
-		    bdc::endpoint_id&& id{event.peer->address.host, event.peer->address.port};
+		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto result = peer_map_.emplace(std::move(id), std::make_tuple(
 			    in_connection_t(key(*this), strand_, pool_, *host_, *(event.peer)),
 			    out_connection_t(key(*this), strand_, pool_, metadata_, *host_, *(event.peer))));
@@ -396,7 +396,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_RECEIVE:
                 {
-		    bdc::endpoint_id id{event.peer->address.host, event.peer->address.port};
+		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto iter = peer_map_.find(id);
 		    if (iter == peer_map_.end())
 		    {
