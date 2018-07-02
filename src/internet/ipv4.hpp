@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <array>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,8 @@ std::vector<address> resolve(const std::string& hostname);
 } // namespace beam
 
 namespace std {
+
+ostream& operator<<(ostream& stream, const beam::internet::ipv4::endpoint_id& id);
 
 template<>
 struct hash<beam::internet::ipv4::endpoint_id>

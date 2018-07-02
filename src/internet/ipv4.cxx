@@ -1,5 +1,6 @@
 #include "ipv4.hpp"
 #include <limits>
+#include <ostream>
 #include <utility>
 #include <asio/ip/udp.hpp>
 
@@ -44,3 +45,13 @@ std::vector<address> resolve(const std::string& hostname)
 } // namespace ipv4
 } // namespace internet
 } // namespace beam
+
+namespace std {
+
+ostream& operator<<(ostream& stream, const beam::internet::ipv4::endpoint_id& id)
+{
+    stream << "beam::internet::ipv4::endpoint_id{address: " << id.get_address() << ", port: " << id.get_port() << "}";
+    return stream;
+}
+
+} // namespace std
