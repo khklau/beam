@@ -31,6 +31,18 @@ public:
     {
 	return this->value_ < other.value_;
     }
+    inline bool operator<=(const endpoint_id& other) const
+    {
+	return this->value_ <= other.value_;
+    }
+    inline bool operator>(const endpoint_id& other) const
+    {
+	return this->value_ > other.value_;
+    }
+    inline bool operator>=(const endpoint_id& other) const
+    {
+	return this->value_ >= other.value_;
+    }
     address get_address() const;
     port get_port() const;
     inline std::uint64_t get_value() const { return value_; }
