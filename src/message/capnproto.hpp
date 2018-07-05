@@ -2,7 +2,7 @@
 #define BEAM_MESSAGE_CAPNPROTO_HPP
 
 #include <utility>
-#include <beam/internet/ipv4.hpp>
+#include <beam/internet/endpoint.hpp>
 #include <beam/message/buffer.hpp>
 #include <beam/message/buffer_pool.hpp>
 #include <capnp/common.h>
@@ -45,7 +45,7 @@ public:
 	    destination_(),
 	    source_()
     { }
-    inline payload(statement<message_type>&& other, beam::internet::ipv4::endpoint_id destination)
+    inline payload(statement<message_type>&& other, beam::internet::endpoint_id destination)
 	:
 	    buffer_(std::move(static_cast<unique_pool_ptr>(other))),
 	    destination_(destination),
@@ -57,7 +57,7 @@ public:
 	    destination_(),
 	    source_()
     { }
-    inline payload(unique_pool_ptr&& buffer, beam::internet::ipv4::endpoint_id source)
+    inline payload(unique_pool_ptr&& buffer, beam::internet::endpoint_id source)
 	:
 	    buffer_(std::move(buffer)),
 	    destination_(),
@@ -74,19 +74,19 @@ public:
     {
 	return std::move(unique_pool_ptr(std::move(buffer_)));
     }
-    inline beam::internet::ipv4::endpoint_id get_destination() const
+    inline beam::internet::endpoint_id get_destination() const
     {
 	return destination_;
     }
-    inline beam::internet::ipv4::endpoint_id get_source() const
+    inline beam::internet::endpoint_id get_source() const
     {
 	return source_;
     }
-    inline void set_destination(beam::internet::ipv4::endpoint_id destination)
+    inline void set_destination(beam::internet::endpoint_id destination)
     {
 	destination_ = destination;
     }
-    inline void set_source(beam::internet::ipv4::endpoint_id source)
+    inline void set_source(beam::internet::endpoint_id source)
     {
 	source_ = source;
     }
@@ -94,8 +94,8 @@ private:
     payload(const payload&) = delete;
     payload& operator=(const payload&) = delete;
     unique_pool_ptr buffer_;
-    beam::internet::ipv4::endpoint_id destination_;
-    beam::internet::ipv4::endpoint_id source_;
+    beam::internet::endpoint_id destination_;
+    beam::internet::endpoint_id source_;
 };
 
 template <class message_t>
@@ -108,11 +108,11 @@ public:
     {
 	return std::move(unique_pool_ptr(std::move(buffer_)));
     }
-    inline beam::internet::ipv4::endpoint_id get_destination() const
+    inline beam::internet::endpoint_id get_destination() const
     {
 	return destination_;
     }
-    inline beam::internet::ipv4::endpoint_id get_source() const
+    inline beam::internet::endpoint_id get_source() const
     {
 	return source_;
     }
@@ -124,8 +124,8 @@ private:
     statement() = delete;
     statement(const statement&) = delete;
     statement& operator=(const statement&) = delete;
-    beam::internet::ipv4::endpoint_id destination_;
-    beam::internet::ipv4::endpoint_id source_;
+    beam::internet::endpoint_id destination_;
+    beam::internet::endpoint_id source_;
     unique_pool_ptr buffer_;
     capnp::FlatArrayMessageReader reader_;
 };

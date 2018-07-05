@@ -13,6 +13,7 @@ namespace unordered_mixed {
 
 namespace bdc = beam::duplex::common;
 namespace bii4 = beam::internet::ipv4;
+namespace bin = beam::internet;
 namespace bmc = beam::message::capnproto;
 
 struct key
@@ -40,7 +41,7 @@ in_connection<unreliable_msg_t, reliable_msg_t>::in_connection(
 { }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-beam::internet::ipv4::endpoint_id in_connection<unreliable_msg_t, reliable_msg_t>::get_endpoint_id() const
+beam::internet::endpoint_id in_connection<unreliable_msg_t, reliable_msg_t>::get_source_id() const
 {
     return { peer_.address.host, peer_.address.port };
 }
@@ -60,6 +61,12 @@ out_connection<unreliable_msg_t, reliable_msg_t>::out_connection(
 	host_(host),
 	peer_(peer)
 { }
+
+template <class unreliable_msg_t, class reliable_msg_t>
+beam::internet::endpoint_id out_connection<unreliable_msg_t, reliable_msg_t>::get_destination_id() const
+{
+    return { peer_.address.host, peer_.address.port };
+}
 
 template <class unreliable_msg_t, class reliable_msg_t>
 uint32_t out_connection<unreliable_msg_t, reliable_msg_t>::get_packet_flags(channel_id::type channel)
@@ -256,12 +263,16 @@ void initiator<in_connection_t, out_connection_t>::exec_receive(const typename i
                             event.packet->dataLength / sizeof(capnp::word));
                     if (event.channelID == channel_id::unreliable)
                     {
-			bmc::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::unreliable_msg_type> payload(
+				    std::move(pool_.borrow_and_copy(source)),
+				    in.get_source_id());
                         handlers.on_receive_unreliable_msg(in, std::move(payload));
                     }
                     else if (event.channelID == channel_id::reliable)
                     {
-			bmc::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
+			bmc::payload<typename in_connection_t::reliable_msg_type> payload(
+				    std::move(pool_.borrow_and_copy(source)),
+				    in.get_source_id());
                         handlers.on_receive_reliable_msg(in, std::move(payload));
                     }
                     enet_packet_destroy(event.packet);
@@ -291,7 +302,7 @@ responder<in_connection_t, out_connection_t>::responder(asio::io_service::strand
 }
 
 template <class in_connection_t, class out_connection_t>
-bind_result responder<in_connection_t, out_connection_t>::bind(const beam::internet::ipv4::endpoint_id& id)
+bind_result responder<in_connection_t, out_connection_t>::bind(const beam::internet::endpoint_id& id)
 {
     if (is_bound())
     {
@@ -317,7 +328,7 @@ void responder<in_connection_t, out_connection_t>::unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::async_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback)
+void responder<in_connection_t, out_connection_t>::async_send(std::function<void(std::function<out_connection_t*(const beam::internet::endpoint_id&)>)> callback)
 {
     strand_.post(std::bind(&responder<in_connection_t, out_connection_t>::exec_send, this, callback));
 }
@@ -335,13 +346,13 @@ void responder<in_connection_t, out_connection_t>::exec_unbind()
 }
 
 template <class in_connection_t, class out_connection_t>
-void responder<in_connection_t, out_connection_t>::exec_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback)
+void responder<in_connection_t, out_connection_t>::exec_send(std::function<void(std::function<out_connection_t*(const beam::internet::endpoint_id&)>)> callback)
 {
     if (TURBO_UNLIKELY(!host_))
     {
 	return;
     }
-    callback([&](const beam::internet::ipv4::endpoint_id& endpoint)
+    callback([&](const beam::internet::endpoint_id& endpoint)
     {
 	auto iter = peer_map_.find(endpoint);
 	if (iter != peer_map_.end())
@@ -376,7 +387,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
             {
                 case ENET_EVENT_TYPE_DISCONNECT:
                 {
-		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
+		    bin::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto iter = peer_map_.find(id);
 		    if (iter != peer_map_.end())
 		    {
@@ -387,7 +398,7 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_CONNECT:
                 {
-		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
+		    bin::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto result = peer_map_.emplace(std::move(id), std::make_tuple(
 			    in_connection_t(key(*this), strand_, pool_, *host_, *(event.peer)),
 			    out_connection_t(key(*this), strand_, pool_, metadata_, *host_, *(event.peer))));
@@ -396,25 +407,28 @@ void responder<in_connection_t, out_connection_t>::exec_receive(const typename i
                 }
                 case ENET_EVENT_TYPE_RECEIVE:
                 {
-		    bii4::endpoint_id id(event.peer->address.host, event.peer->address.port);
+		    bin::endpoint_id id(event.peer->address.host, event.peer->address.port);
 		    auto iter = peer_map_.find(id);
-		    if (iter == peer_map_.end())
+		    if (iter != peer_map_.end())
 		    {
-			break;
+			kj::ArrayPtr<capnp::word> source(
+				reinterpret_cast<capnp::word*>(event.packet->data),
+				event.packet->dataLength / sizeof(capnp::word));
+			if (event.channelID == channel_id::unreliable)
+			{
+			    bmc::payload<typename in_connection_t::unreliable_msg_type> payload(
+				    std::move(pool_.borrow_and_copy(source)),
+				    id);
+			    handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(payload));
+			}
+			else if (event.channelID == channel_id::reliable)
+			{
+			    bmc::payload<typename in_connection_t::reliable_msg_type> payload(
+				    std::move(pool_.borrow_and_copy(source)),
+				    id);
+			    handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(payload));
+			}
 		    }
-                    kj::ArrayPtr<capnp::word> source(
-                            reinterpret_cast<capnp::word*>(event.packet->data),
-                            event.packet->dataLength / sizeof(capnp::word));
-                    if (event.channelID == channel_id::unreliable)
-                    {
-			bmc::payload<typename in_connection_t::unreliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-                        handlers.on_receive_unreliable_msg(std::get<0>(iter->second), std::move(payload));
-                    }
-                    else if (event.channelID == channel_id::reliable)
-                    {
-			bmc::payload<typename in_connection_t::reliable_msg_type> payload(std::move(pool_.borrow_and_copy(source)));
-                        handlers.on_receive_reliable_msg(std::get<0>(iter->second), std::move(payload));
-                    }
                     enet_packet_destroy(event.packet);
                     break;
                 }

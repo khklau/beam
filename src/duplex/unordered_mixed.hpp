@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <asio/strand.hpp>
 #include <beam/duplex/common.hpp>
-#include <beam/internet/ipv4.hpp>
+#include <beam/internet/endpoint.hpp>
 #include <beam/message/buffer_pool.hpp>
 #include <beam/message/capnproto.hpp>
 #include <enet/enet.h>
@@ -44,7 +44,7 @@ public:
         std::function<void(const in_connection& connection, beam::message::capnproto::payload<reliable_msg_t>&& payload)> on_receive_reliable_msg;
     };
     in_connection(const key&, asio::io_service::strand& strand, beam::message::buffer_pool& pool, ENetHost& host, ENetPeer& peer);
-    beam::internet::ipv4::endpoint_id get_endpoint_id() const;
+    beam::internet::endpoint_id get_source_id() const;
 private:
     in_connection() = delete;
     asio::io_service::strand& strand_;
@@ -79,6 +79,7 @@ public:
 	    metadata_map_type& metadata,
 	    ENetHost& host,
 	    ENetPeer& peer);
+    beam::internet::endpoint_id get_destination_id() const;
     void send_unreliable(beam::message::capnproto::payload<unreliable_msg_t>& message);
     void send_reliable(beam::message::capnproto::payload<reliable_msg_t>& message);
 private:
@@ -159,23 +160,23 @@ public:
     responder(asio::io_service::strand& strand, perf_params&& params);
     inline bool is_bound() const { return host_.get() != nullptr; }
     inline bool has_connections() const { return !peer_map_.empty(); }
-    bind_result bind(const beam::internet::ipv4::endpoint_id& id);
+    bind_result bind(const beam::internet::endpoint_id& id);
     void unbind();
-    void async_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback);
+    void async_send(std::function<void(std::function<out_connection_t*(const beam::internet::endpoint_id&)>)> callback);
     void async_receive(const typename in_connection_t::event_handlers& handlers);
 private:
     responder() = delete;
     responder(const responder&) = delete;
     responder& operator=(const responder&) = delete;
     void exec_unbind();
-    void exec_send(std::function<void(std::function<out_connection_t*(const beam::internet::ipv4::endpoint_id&)>)> callback);
+    void exec_send(std::function<void(std::function<out_connection_t*(const beam::internet::endpoint_id&)>)> callback);
     void exec_receive(const typename in_connection_t::event_handlers& handlers);
     asio::io_service::strand& strand_;
     perf_params params_;
     beam::message::buffer_pool pool_;
     typename out_connection_type::metadata_map_type metadata_;
     std::unique_ptr<ENetHost, std::function<void(ENetHost*)>> host_;
-    std::unordered_map<beam::internet::ipv4::endpoint_id, std::tuple<in_connection_t, out_connection_t>> peer_map_;
+    std::unordered_map<beam::internet::endpoint_id, std::tuple<in_connection_t, out_connection_t>> peer_map_;
 };
 
 } // namespace unordered_mixed
