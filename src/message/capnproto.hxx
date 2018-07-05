@@ -19,9 +19,11 @@ class key
 };
 
 template <class message_t>
-statement<message_t>::statement(payload<message_t>&& source)
+statement<message_t>::statement(payload<message_t>&& input)
     :
-	buffer_(std::move(static_cast<unique_pool_ptr>(source))),
+	destination_(input.get_destination()),
+	source_(input.get_source()),
+	buffer_(std::move(static_cast<unique_pool_ptr>(input))),
 	reader_(buffer_->asPtr())
 { }
 

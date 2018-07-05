@@ -57,11 +57,11 @@ public:
 	    destination_(),
 	    source_()
     { }
-    inline payload(unique_pool_ptr&& buffer, beam::internet::ipv4::endpoint_id destination)
+    inline payload(unique_pool_ptr&& buffer, beam::internet::ipv4::endpoint_id source)
 	:
 	    buffer_(std::move(buffer)),
-	    destination_(destination),
-	    source_()
+	    destination_(),
+	    source_(source)
     { }
     inline payload& operator=(payload&& other)
     {
@@ -103,10 +103,18 @@ class TURBO_SYMBOL_DECL statement
 {
 public:
     typedef message_t message_type;
-    explicit statement(payload<message_t>&& source);
+    explicit statement(payload<message_t>&& input);
     inline explicit operator unique_pool_ptr()
     {
 	return std::move(unique_pool_ptr(std::move(buffer_)));
+    }
+    inline beam::internet::ipv4::endpoint_id get_destination() const
+    {
+	return destination_;
+    }
+    inline beam::internet::ipv4::endpoint_id get_source() const
+    {
+	return source_;
     }
     inline typename message_type::Reader read()
     {
@@ -116,6 +124,8 @@ private:
     statement() = delete;
     statement(const statement&) = delete;
     statement& operator=(const statement&) = delete;
+    beam::internet::ipv4::endpoint_id destination_;
+    beam::internet::ipv4::endpoint_id source_;
     unique_pool_ptr buffer_;
     capnp::FlatArrayMessageReader reader_;
 };
