@@ -28,18 +28,23 @@ statement<message_t>::statement(payload<message_t>&& input)
 { }
 
 template <class message_t>
-form<message_t>::form(unique_pool_ptr&& buffer)
+form<message_t>::form(unique_pool_ptr&& buffer, beam::internet::endpoint_id destination)
     :
+	destination_(destination),
+	source_(),
 	buffer_(std::move(buffer)),
 	builder_(buffer_->asPtr())
 { }
 
 template <class message_t>
-form<message_t>::form(const statement<message_t>& source, unique_pool_ptr&& buffer)
+form<message_t>::form(const statement<message_t>& input, unique_pool_ptr&& buffer)
     :
-	form(std::move(buffer))
+	destination_(input.get_destination()),
+	source_(input.get_source()),
+	buffer_(std::move(buffer)),
+	builder_(buffer_->asPtr())
 {
-    builder_.setRoot(source.read());
+    builder_.setRoot(input.read());
 }
 
 template <class message_t>

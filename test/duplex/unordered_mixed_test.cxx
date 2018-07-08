@@ -353,7 +353,7 @@ void setupConnection(::responder_master& master, ::initiator_slave& slave)
 
 TEST(unordered_mixed_test, basic_initiated_unreliable)
 {
-    ::responder_master master({0U, 18801U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18801U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18801U}, {24U, 64U});
     setupConnection(master, slave);
     std::size_t unreliable_count = 0;
@@ -363,7 +363,7 @@ TEST(unordered_mixed_test, basic_initiated_unreliable)
 	{
 	    [&](const ::responder_master::in_connection_type::event_handlers& current)
 	    {
-		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = message.build();
 		builder.setValue(123U);
 		slave.send_unreliable(message);
@@ -395,10 +395,10 @@ TEST(unordered_mixed_test, basic_initiated_unreliable)
 
 TEST(unordered_mixed_test, basic_initiated_reliable)
 {
-    ::responder_master master({0U, 18802U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18802U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18802U}, {24U, 64U});
     setupConnection(master, slave);
-    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder = message.build();
     builder.setValue("foo");
     slave.send_reliable(message);
@@ -439,14 +439,14 @@ TEST(unordered_mixed_test, basic_initiated_reliable)
 
 TEST(unordered_mixed_test, basic_initiated_mixed)
 {
-    ::responder_master master({0U, 18803U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18803U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18803U}, {24U, 64U});
     setupConnection(master, slave);
-    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue("bar");
     slave.send_reliable(message1);
-    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(999U);
     slave.send_unreliable(message2);
@@ -489,11 +489,11 @@ TEST(unordered_mixed_test, basic_initiated_mixed)
 
 TEST(unordered_mixed_test, basic_responded_unreliable)
 {
-    ::responder_master master({0U, 18901U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18901U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18901U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::UnreliableMsg::Builder builder = message.build();
     builder.setValue(123U);
     master.send_unreliable(*iter, message);
@@ -535,11 +535,11 @@ TEST(unordered_mixed_test, basic_responded_unreliable)
 
 TEST(unordered_mixed_test, basic_responded_reliable)
 {
-    ::responder_master master({0U, 18902U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18902U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18902U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder = message.build();
     builder.setValue("abcxyz");
     master.send_reliable(*iter, message);
@@ -581,15 +581,15 @@ TEST(unordered_mixed_test, basic_responded_reliable)
 
 TEST(unordered_mixed_test, basic_responded_mixed)
 {
-    ::responder_master master({0U, 18903U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 18903U), {24U, 64U});
     ::initiator_slave slave({::localhost, 18903U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue("abcxyz");
     master.send_reliable(*iter, message1);
-    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(123U);
     master.send_unreliable(*iter, message2);
@@ -641,7 +641,7 @@ TEST(unordered_mixed_test, basic_responded_mixed)
 
 TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 {
-    ::responder_master master({0U, 19001U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19001U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19001U}, {24U, 64U});
     setupConnection(master, slave);
     ::responder_master::in_connection_type::event_handlers handlers
@@ -656,7 +656,7 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 	    }
 	    else
 	    {
-		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = message.build();
 		builder.setValue(456U);
 		slave.send_unreliable(message);
@@ -675,7 +675,7 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 	{
 	    bmc::statement<bdu::UnreliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
-	    bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
+	    bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 	    bdu::UnreliableMsg::Builder builder = reply.build();
 	    builder.setValue(request.read().getValue() + 20);
 	    master.send_unreliable(*iter, reply);
@@ -693,7 +693,7 @@ TEST(unordered_mixed_test, request_reply_initiated_unreliable)
 
 TEST(unordered_mixed_test, request_reply_initiated_reliable)
 {
-    ::responder_master master({0U, 19002U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19002U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19002U}, {24U, 64U});
     setupConnection(master, slave);
     ::responder_master::in_connection_type::event_handlers handlers
@@ -708,7 +708,7 @@ TEST(unordered_mixed_test, request_reply_initiated_reliable)
 	    }
 	    else
 	    {
-		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::ReliableMsg::Builder builder = message.build();
 		builder.setValue("test");
 		slave.send_reliable(message);
@@ -731,7 +731,7 @@ TEST(unordered_mixed_test, request_reply_initiated_reliable)
 	{
 	    bmc::statement<bdu::ReliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
-	    bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
+	    bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 	    bdu::ReliableMsg::Builder builder = reply.build();
 	    std::string tmp(request.read().getValue());
 	    builder.setValue(tmp.append("ing").c_str());
@@ -746,7 +746,7 @@ TEST(unordered_mixed_test, request_reply_initiated_reliable)
 
 TEST(unordered_mixed_test, request_reply_initiated_mixed)
 {
-    ::responder_master master({0U, 19003U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19003U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19003U}, {24U, 64U});
     setupConnection(master, slave);
     std::size_t unreliable_count = 0U;
@@ -765,7 +765,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	    }
 	    else if (reliable_attempt == 0U)
 	    {
-		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::ReliableMsg::Builder builder = message.build();
 		builder.setValue("test");
 		slave.send_reliable(message);
@@ -780,7 +780,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	    }
 	    else
 	    {
-		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = message.build();
 		builder.setValue(456U);
 		slave.send_unreliable(message);
@@ -802,7 +802,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	{
 	    bmc::statement<bdu::UnreliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
-	    bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
+	    bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 	    bdu::UnreliableMsg::Builder builder = reply.build();
 	    builder.setValue(request.read().getValue() + 20);
 	    master.send_unreliable(*iter, reply);
@@ -812,7 +812,7 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 	{
 	    bmc::statement<bdu::ReliableMsg> request(std::move(payload));
 	    auto iter = master.known_endpoints.begin();
-	    bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
+	    bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 	    bdu::ReliableMsg::Builder builder = reply.build();
 	    std::string tmp(request.read().getValue());
 	    builder.setValue(tmp.append("ing").c_str());
@@ -827,11 +827,11 @@ TEST(unordered_mixed_test, request_reply_initiated_mixed)
 
 TEST(unordered_mixed_test, request_reply_responded_unreliable)
 {
-    ::responder_master master({0U, 19101U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19101U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19101U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::UnreliableMsg::Builder builder = message.build();
     builder.setValue(789U);
     master.send_unreliable(*iter, message);
@@ -843,7 +843,7 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 	    if (slave.try_receive_unreliable(payload) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
 		bmc::statement<bdu::UnreliableMsg> request(std::move(payload));
-		bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = reply.build();
 		builder.setValue(request.read().getValue() + 10U);
 		slave.send_unreliable(reply);
@@ -874,11 +874,11 @@ TEST(unordered_mixed_test, request_reply_responded_unreliable)
 
 TEST(unordered_mixed_test, request_reply_responded_reliable)
 {
-    ::responder_master master({0U, 19102U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19102U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19102U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder = message.build();
     builder.setValue("compute");
     master.send_reliable(*iter, message);
@@ -890,7 +890,7 @@ TEST(unordered_mixed_test, request_reply_responded_reliable)
 	    if (slave.try_receive_reliable(payload) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
 		bmc::statement<bdu::ReliableMsg> request(std::move(payload));
-		bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
+		bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::ReliableMsg::Builder builder = reply.build();
 		std::string tmp("pre-");
 		builder.setValue(tmp.append(request.read().getValue()).c_str());
@@ -922,15 +922,15 @@ TEST(unordered_mixed_test, request_reply_responded_reliable)
 
 TEST(unordered_mixed_test, request_reply_responded_mixed)
 {
-    ::responder_master master({0U, 19103U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19103U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19103U}, {24U, 64U});
     setupConnection(master, slave);
     auto iter = master.known_endpoints.begin();
-    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bdu::ReliableMsg> message1(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue("compute");
     master.send_reliable(*iter, message1);
-    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bdu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.responder.get_binding());
     bdu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(789U);
     master.send_unreliable(*iter, message2);
@@ -944,7 +944,7 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	    if (slave.try_receive_unreliable(payload1) == ::initiator_slave::unreliable_queue_type::consumer::result::success)
 	    {
 		bmc::statement<bdu::UnreliableMsg> request1(std::move(payload1));
-		bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = reply.build();
 		builder.setValue(request1.read().getValue() + 10U);
 		slave.send_unreliable(reply);
@@ -953,7 +953,7 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 	    if (slave.try_receive_reliable(payload2) == ::initiator_slave::reliable_queue_type::consumer::result::success)
 	    {
 		bmc::statement<bdu::ReliableMsg> request2(std::move(payload2));
-		bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()));
+		bmc::form<bdu::ReliableMsg> reply(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::ReliableMsg::Builder builder = reply.build();
 		std::string tmp("pre-");
 		builder.setValue(tmp.append(request2.read().getValue()).c_str());
@@ -997,7 +997,7 @@ TEST(unordered_mixed_test, request_reply_responded_mixed)
 
 TEST(unordered_mixed_test, recycled_buffers)
 {
-    ::responder_master master({0U, 19103U}, {24U, 64U});
+    ::responder_master master(bin::endpoint_id(0U, 19103U), {24U, 64U});
     ::initiator_slave slave({::localhost, 19103U}, {24U, 64U});
     setupConnection(master, slave);
     std::unordered_set<std::string> reliable_values({"abc", "xyz", "!@#", "*()"});
@@ -1015,7 +1015,7 @@ TEST(unordered_mixed_test, recycled_buffers)
 	{
 	    if (reliable_iter != reliable_values.end() && reliable_sent <= reliable_count)
 	    {
-		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::ReliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::ReliableMsg::Builder builder = message.build();
 		builder.setValue(*reliable_iter);
 		slave.send_reliable(message);
@@ -1023,7 +1023,7 @@ TEST(unordered_mixed_test, recycled_buffers)
 	    }
 	    if (unreliable_iter != unreliable_values.end() && unreliable_sent <= unreliable_count)
 	    {
-		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bdu::UnreliableMsg> message(std::move(master.pool.borrow()), master.responder.get_binding());
 		bdu::UnreliableMsg::Builder builder = message.build();
 		builder.setValue(*unreliable_iter);
 		slave.send_unreliable(message);

@@ -135,8 +135,8 @@ class TURBO_SYMBOL_DECL form
 {
 public:
     typedef message_t message_type;
-    explicit form(unique_pool_ptr&& buffer);
-    form(const statement<message_t>& source, unique_pool_ptr&& buffer);
+    form(unique_pool_ptr&& buffer, beam::internet::endpoint_id destination);
+    form(const statement<message_t>& input, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()
     {
 	return builder_.getRoot<message_type>().asReader();
@@ -159,6 +159,8 @@ private:
     form() = delete;
     form(const form&) = delete;
     form& operator=(const form&) = delete;
+    beam::internet::endpoint_id destination_;
+    beam::internet::endpoint_id source_;
     unique_pool_ptr buffer_;
     capnp::MallocMessageBuilder builder_;
 };
