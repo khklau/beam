@@ -160,6 +160,12 @@ public:
     responder(asio::io_service::strand& strand, perf_params&& params);
     inline bool is_bound() const { return host_.get() != nullptr; }
     inline bool has_connections() const { return !peer_map_.empty(); }
+    inline beam::internet::endpoint_id get_binding() const
+    {
+	return is_bound()
+		? beam::internet::endpoint_id(host_->address.host, host_->address.port)
+		: beam::internet::endpoint_id();
+    }
     bind_result bind(const beam::internet::endpoint_id& id);
     void unbind();
     void async_send(std::function<void(std::function<out_connection_t*(const beam::internet::endpoint_id&)>)> callback);
