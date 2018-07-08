@@ -11,7 +11,7 @@
 #include <asio/io_service.hpp>
 #include <asio/strand.hpp>
 #include <asio/high_resolution_timer.hpp>
-#include <beam/internet/ipv4.hpp>
+#include <beam/internet/endpoint.hpp>
 #include <beam/message/buffer_pool.hpp>
 #include <beam/message/capnproto.hpp>
 #include <beam/queue/common.hpp>
@@ -158,7 +158,13 @@ public:
     receiver(asio::io_service::strand& strand, perf_params&& params);
     ~receiver();
     inline bool is_bound() const { return host_ != nullptr; }
-    bind_result bind(const beam::queue::common::endpoint_id& point);
+    inline beam::internet::endpoint_id get_binding() const
+    {
+	return is_bound()
+		? beam::internet::endpoint_id(host_->address.host, host_->address.port)
+		: beam::internet::endpoint_id();
+    }
+    bind_result bind(const beam::internet::endpoint_id& point);
     void unbind();
     void async_receive(const event_handlers& handlers);
 private:

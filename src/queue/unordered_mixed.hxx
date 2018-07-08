@@ -13,7 +13,7 @@ namespace beam {
 namespace queue {
 namespace unordered_mixed {
 
-namespace bii4 = beam::internet::ipv4;
+namespace bin = beam::internet;
 namespace bmc = beam::message::capnproto;
 namespace bqc = beam::queue::common;
 
@@ -244,13 +244,13 @@ receiver<unreliable_msg_t, reliable_msg_t>::~receiver()
 }
 
 template <class unreliable_msg_t, class reliable_msg_t>
-typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreliable_msg_t, reliable_msg_t>::bind(const bqc::endpoint_id& point)
+typename receiver<unreliable_msg_t, reliable_msg_t>::bind_result receiver<unreliable_msg_t, reliable_msg_t>::bind(const bin::endpoint_id& point)
 {
     if (is_bound())
     {
 	return bind_result::already_bound;
     }
-    ENetAddress address{point.address, point.port};
+    ENetAddress address{point.get_address(), point.get_port()};
     host_ = enet_host_create(&address, params_.max_connections, 2, params_.in_bytes_per_sec, params_.out_bytes_per_sec);
     if (host_ == nullptr)
     {

@@ -14,6 +14,7 @@
 #include <turbo/container/spsc_ring_queue.hxx>
 
 namespace bii4 = beam::internet::ipv4;
+namespace bin = beam::internet;
 namespace bmc = beam::message::capnproto;
 namespace bme = beam::message;
 namespace bqc = beam::queue::common;
@@ -27,11 +28,11 @@ class sender_slave
 {
 public:
     typedef bqu::sender<bqu::UnreliableMsg, bqu::ReliableMsg> sender_type;
-    sender_slave(bii4::address address, bqc::port port, const sender_type::perf_params& params);
+    sender_slave(bii4::address address, bii4::port port, const sender_type::perf_params& params);
     ~sender_slave();
     inline bool is_running() const { return thread_ != nullptr; }
     inline bii4::address get_address() const { return address_; }
-    inline bqc::port get_port() const { return port_; }
+    inline bii4::port get_port() const { return port_; }
     void start();
     void stop();
     void send_unreliable(bmc::form<bqu::UnreliableMsg>& message);
@@ -45,9 +46,9 @@ private:
     void brake();
     void on_send_unreliable();
     void on_send_reliable();
-    void on_disconnect(const bii4::address&, const beam::queue::common::port&);
+    void on_disconnect(const bii4::address&, const bii4::port&);
     bii4::address address_;
-    bqc::port port_;
+    bii4::port port_;
     std::thread* thread_;
     asio::io_service service_;
     asio::io_service::strand strand_;
@@ -64,16 +65,16 @@ private:
 struct receiver_master
 {
     typedef bqu::receiver<bqu::UnreliableMsg, bqu::ReliableMsg> receiver_type;
-    receiver_master(bqc::endpoint_id&& point, receiver_type::perf_params&& params);
+    receiver_master(bin::endpoint_id&& point, receiver_type::perf_params&& params);
     ~receiver_master();
-    void bind(bqc::endpoint_id&& point);
+    void bind(bin::endpoint_id&& point);
     asio::io_service service;
     asio::io_service::strand strand;
     bme::buffer_pool pool;
     receiver_type receiver;
 };
 
-sender_slave::sender_slave(bii4::address address, bqc::port port, const sender_type::perf_params& params) :
+sender_slave::sender_slave(bii4::address address, bii4::port port, const sender_type::perf_params& params) :
 	address_(address),
 	port_(port),
 	thread_(nullptr),
@@ -164,12 +165,12 @@ void sender_slave::on_send_reliable()
     sender_.send_reliable(message);
 }
 
-void sender_slave::on_disconnect(const bii4::address&, const beam::queue::common::port&)
+void sender_slave::on_disconnect(const bii4::address&, const bii4::port&)
 {
     GTEST_FATAL_FAILURE_("Unexpected disconnect");
 }
 
-receiver_master::receiver_master(bqc::endpoint_id&& point, receiver_type::perf_params&& params) :
+receiver_master::receiver_master(bin::endpoint_id&& point, receiver_type::perf_params&& params) :
 	service(),
 	strand(service),
 	pool(8U, params.window_size),
@@ -186,7 +187,7 @@ receiver_master::~receiver_master()
     }
 }
 
-void receiver_master::bind(bqc::endpoint_id&& point)
+void receiver_master::bind(bin::endpoint_id&& point)
 {
     ASSERT_EQ(receiver_type::bind_result::success, receiver.bind(point)) << "Bind failed";
 }
@@ -203,12 +204,12 @@ void setupConnection(::receiver_master& master, ::sender_slave& slave)
 		slave.start();
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address& address, const beam::queue::common::port&)
+	    [&](const bii4::address& address, const bii4::port&)
 	    {
 		ASSERT_EQ(slave.get_address(), address) << "Connection on unexpected address";
 		++connection_count;
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -230,7 +231,7 @@ void setupConnection(::receiver_master& master, ::sender_slave& slave)
 
 TEST(unordered_mixed_test, basic_unreliable)
 {
-    ::receiver_master master({0U, 8888U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8888U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8888U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::size_t unreliable_count = 0;
@@ -240,17 +241,17 @@ TEST(unordered_mixed_test, basic_unreliable)
 	{
 	    [&](const ::receiver_master::receiver_type::event_handlers& current)
 	    {
-		bmc::form<bqu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		bmc::form<bqu::UnreliableMsg> message(std::move(master.pool.borrow()), master.receiver.get_binding());
 		bqu::UnreliableMsg::Builder builder = message.build();
 		builder.setValue(123U);
 		slave.send_unreliable(message);
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -271,10 +272,10 @@ TEST(unordered_mixed_test, basic_unreliable)
 
 TEST(unordered_mixed_test, basic_reliable)
 {
-    ::receiver_master master({0U, 8889U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8889U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8889U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
-    bmc::form<bqu::ReliableMsg> message(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder = message.build();
     builder.setValue("foo");
     slave.send_reliable(message);
@@ -287,11 +288,11 @@ TEST(unordered_mixed_test, basic_reliable)
 	    {
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -313,22 +314,22 @@ TEST(unordered_mixed_test, basic_reliable)
 
 TEST(unordered_mixed_test, multi_unreliable)
 {
-    ::receiver_master master({0U, 8888U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8888U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8888U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<uint32_t> values({123U, 456U, 789U});
     auto iter = values.begin();
-    bmc::form<bqu::UnreliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message1(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder1 = message1.build();
     builder1.setValue(*iter);
     slave.send_unreliable(message1);
     ++iter;
-    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(*iter);
     slave.send_unreliable(message2);
     ++iter;
-    bmc::form<bqu::UnreliableMsg> message3(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message3(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder3 = message3.build();
     builder3.setValue(*iter);
     slave.send_unreliable(message3);
@@ -342,11 +343,11 @@ TEST(unordered_mixed_test, multi_unreliable)
 	    {
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -370,22 +371,22 @@ TEST(unordered_mixed_test, multi_unreliable)
 
 TEST(unordered_mixed_test, multi_reliable)
 {
-    ::receiver_master master({0U, 8889U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8889U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8889U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<std::string> values({"abc", "xyz", "!@#"});
     auto iter = values.begin();
-    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue(*iter);
     slave.send_reliable(message1);
     ++iter;
-    bmc::form<bqu::ReliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message2(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder2 = message2.build();
     builder2.setValue(*iter);
     slave.send_reliable(message2);
     ++iter;
-    bmc::form<bqu::ReliableMsg> message3(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message3(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder3 = message3.build();
     builder3.setValue(*iter);
     slave.send_reliable(message3);
@@ -400,11 +401,11 @@ TEST(unordered_mixed_test, multi_reliable)
 	    {
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -428,14 +429,14 @@ TEST(unordered_mixed_test, multi_reliable)
 
 TEST(unordered_mixed_test, basic_mixed)
 {
-    ::receiver_master master({0U, 8890U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8890U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8890U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
-    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue("bar");
     slave.send_reliable(message1);
-    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(999U);
     slave.send_unreliable(message2);
@@ -449,11 +450,11 @@ TEST(unordered_mixed_test, basic_mixed)
 	    {
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -476,39 +477,39 @@ TEST(unordered_mixed_test, basic_mixed)
 
 TEST(unordered_mixed_test, multi_mixed)
 {
-    ::receiver_master master({0U, 8890U}, {24U, 64U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8890U), {24U, 64U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8890U, {64U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<std::string> reliable_values({"abc", "xyz", "!@#"});
     auto reliable_iter = reliable_values.begin();
     std::unordered_set<uint32_t> unreliable_values({123U, 456U, 789U});
     auto unreliable_iter = unreliable_values.begin();
-    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message1(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder1 = message1.build();
     builder1.setValue(*reliable_iter);
     slave.send_reliable(message1);
     ++reliable_iter;
-    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message2(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder2 = message2.build();
     builder2.setValue(*unreliable_iter);
     slave.send_unreliable(message2);
     ++unreliable_iter;
-    bmc::form<bqu::UnreliableMsg> message3(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message3(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder3 = message3.build();
     builder3.setValue(*unreliable_iter);
     slave.send_unreliable(message3);
     ++unreliable_iter;
-    bmc::form<bqu::ReliableMsg> message4(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message4(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder4 = message4.build();
     builder4.setValue(*reliable_iter);
     slave.send_reliable(message4);
     ++reliable_iter;
-    bmc::form<bqu::ReliableMsg> message5(std::move(master.pool.borrow()));
+    bmc::form<bqu::ReliableMsg> message5(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::ReliableMsg::Builder builder5 = message5.build();
     builder5.setValue(*reliable_iter);
     slave.send_reliable(message5);
     ++reliable_iter;
-    bmc::form<bqu::UnreliableMsg> message6(std::move(master.pool.borrow()));
+    bmc::form<bqu::UnreliableMsg> message6(std::move(master.pool.borrow()), master.receiver.get_binding());
     bqu::UnreliableMsg::Builder builder6 = message6.build();
     builder6.setValue(*unreliable_iter);
     slave.send_unreliable(message6);
@@ -524,11 +525,11 @@ TEST(unordered_mixed_test, multi_mixed)
 	    {
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
@@ -555,7 +556,7 @@ TEST(unordered_mixed_test, multi_mixed)
 
 TEST(unordered_mixed_test, recycled_buffers)
 {
-    ::receiver_master master({0U, 8890U}, {24U, 4U, std::chrono::milliseconds(0)});
+    ::receiver_master master(bin::endpoint_id(0U, 8890U), {24U, 4U, std::chrono::milliseconds(0)});
     ::sender_slave slave(::localhost, 8890U, {4U, std::chrono::microseconds(0)});
     setupConnection(master, slave);
     std::unordered_set<std::string> reliable_values({"abc", "xyz", "!@#", "*()"});
@@ -575,7 +576,7 @@ TEST(unordered_mixed_test, recycled_buffers)
 	    {
 		if (reliable_iter != reliable_values.end() && reliable_sent <= reliable_count)
 		{
-		    bmc::form<bqu::ReliableMsg> message(std::move(master.pool.borrow()));
+		    bmc::form<bqu::ReliableMsg> message(std::move(master.pool.borrow()), master.receiver.get_binding());
 		    bqu::ReliableMsg::Builder builder = message.build();
 		    builder.setValue(*reliable_iter);
 		    slave.send_reliable(message);
@@ -583,7 +584,7 @@ TEST(unordered_mixed_test, recycled_buffers)
 		}
 		if (unreliable_iter != unreliable_values.end() && unreliable_sent <= unreliable_count)
 		{
-		    bmc::form<bqu::UnreliableMsg> message(std::move(master.pool.borrow()));
+		    bmc::form<bqu::UnreliableMsg> message(std::move(master.pool.borrow()), master.receiver.get_binding());
 		    bqu::UnreliableMsg::Builder builder = message.build();
 		    builder.setValue(*unreliable_iter);
 		    slave.send_unreliable(message);
@@ -591,11 +592,11 @@ TEST(unordered_mixed_test, recycled_buffers)
 		}
 		master.receiver.async_receive(current);
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected connect");
 	    },
-	    [&](const bii4::address&, const beam::queue::common::port&)
+	    [&](const bii4::address&, const bii4::port&)
 	    {
 		GTEST_FATAL_FAILURE_("Unexpected disconnect");
 	    },
