@@ -135,6 +135,7 @@ class TURBO_SYMBOL_DECL form
 {
 public:
     typedef message_t message_type;
+    explicit form(unique_pool_ptr&& buffer);
     form(unique_pool_ptr&& buffer, beam::internet::endpoint_id destination);
     form(const statement<message_t>& input, unique_pool_ptr&& buffer);
     inline typename message_type::Reader read()

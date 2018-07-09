@@ -28,6 +28,15 @@ statement<message_t>::statement(payload<message_t>&& input)
 { }
 
 template <class message_t>
+form<message_t>::form(unique_pool_ptr&& buffer)
+    :
+	destination_(),
+	source_(),
+	buffer_(std::move(buffer)),
+	builder_(buffer_->asPtr())
+{ }
+
+template <class message_t>
 form<message_t>::form(unique_pool_ptr&& buffer, beam::internet::endpoint_id destination)
     :
 	destination_(destination),
