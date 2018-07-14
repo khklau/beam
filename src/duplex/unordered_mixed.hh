@@ -3,7 +3,7 @@
 
 #include <beam/duplex/unordered_mixed.hpp>
 #include <stdexcept>
-#include <beam/message/capnproto.hxx>
+#include <beam/message/capnproto.hh>
 #include <capnp/serialize.h>
 #include <turbo/toolset/extension.hpp>
 

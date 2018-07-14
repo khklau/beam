@@ -6,12 +6,12 @@
 #include <asio/io_service.hpp>
 #include <beam/message/buffer_pool.hpp>
 #include <beam/message/capnproto.hpp>
-#include <beam/message/capnproto.hxx>
+#include <beam/message/capnproto.hh>
 #include <beam/queue/unordered_mixed.hpp>
-#include <beam/queue/unordered_mixed.hxx>
+#include <beam/queue/unordered_mixed.hh>
 #include <beam/queue/unordered_mixed_test.capnp.h>
 #include <turbo/container/spsc_ring_queue.hpp>
-#include <turbo/container/spsc_ring_queue.hxx>
+#include <turbo/container/spsc_ring_queue.hh>
 
 namespace bii4 = beam::internet::ipv4;
 namespace bin = beam::internet;

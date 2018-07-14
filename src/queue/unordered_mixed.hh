@@ -6,7 +6,7 @@
 #include <capnp/common.h>
 #include <capnp/serialize.h>
 #include <kj/array.h>
-#include <beam/message/capnproto.hxx>
+#include <beam/message/capnproto.hh>
 #include <turbo/toolset/extension.hpp>
 
 namespace beam {

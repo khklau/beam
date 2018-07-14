@@ -5,7 +5,7 @@ publicHeaders = [
     'buffer.hpp',
     'buffer_pool.hpp',
     'capnproto.hpp',
-    'capnproto.hxx']
+    'capnproto.hh']
 
 sourceFiles = [
     'buffer_pool.cxx']

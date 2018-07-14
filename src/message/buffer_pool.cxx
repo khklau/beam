@@ -1,7 +1,7 @@
 #include "buffer_pool.hpp"
 #include <cassert>
 #include <utility>
-#include <turbo/container/mpmc_ring_queue.hxx>
+#include <turbo/container/mpmc_ring_queue.hh>
 
 namespace beam {
 namespace message {

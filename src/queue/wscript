@@ -4,7 +4,7 @@ from waflib.extras.layout import Product, Component
 publicHeaders = [
     'common.hpp',
     'unordered_mixed.hpp',
-    'unordered_mixed.hxx']
+    'unordered_mixed.hh']
 
 def name(context):
     return os.path.basename(str(context.path))
