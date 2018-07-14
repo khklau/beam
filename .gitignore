@@ -43,9 +43,5 @@
 # Dia
 *.dia~
 
-# GNU Global
-GPATH
-GRTAGS
-GSYMS
-GTAGS
-stl
+# Clangd
+compile_commands.json
