@@ -12,6 +12,7 @@ class endpoint_id
 {
 public:
     endpoint_id();
+    explicit endpoint_id(std::uint64_t value) : value_(value) { }
     endpoint_id(ipv4::address addr, ipv4::port pt);
     inline bool operator==(const endpoint_id& other) const
     {
